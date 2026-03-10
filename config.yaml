@@ -1,0 +1,255 @@
+# GPS导航系统配置文件
+# 所有可调参数在此统一配置
+
+# ============================================================
+# EKF融合节点配置
+# ============================================================
+ekf_fusion_node:
+  # 节点运行频率 (Hz)
+  frequency: 10.0
+
+  # ========== 订阅话题 ==========
+  subscriptions:
+    gps_topic: "/rtk_fix"
+    odom_topic: "/utlidar/odom"
+    imu_topic: "/imu/data"
+
+  # ========== 发布话题 ==========
+  publications:
+    fusion_pose_topic: "/navigation/fusion_pose"   # 融合定位（odom坐标系，JSON格式）
+    map_pose_topic: "/navigation/map_pose"         # 地图坐标系的定位（用于规划）
+    gps_weight_topic: "/navigation/gps_weight"
+
+  # 传感器超时时间 (秒)
+  gps_timeout: 1.0
+  odom_timeout: 0.2
+  imu_timeout: 0.2
+
+  # GPS质量阈值
+  # GPS位置协方差阈值，用于判断GPS信号质量。协方差小于此值认为GPS信号良好，大于此值认为信号差
+  gps_position_covariance_threshold: 0.5
+  gps_satellite_min: 6  # 最小卫星数要求
+
+  # EKF参数 - 用于扩展卡尔曼滤波的预测和校正步骤
+  # process_noise_position: 位置的过程噪声（米），用于EKF预测步骤的协方差矩阵Q，影响状态预测的不确定性
+  process_noise_position: 0.1
+  # process_noise_yaw: 航向角的过程噪声（弧度），用于EKF预测步骤中航向角的不确定性
+  process_noise_yaw: 0.05
+  # odom_measurement_noise: 里程计测量噪声，用于ODOM校正步骤的观测噪声矩阵R
+  odom_measurement_noise: 0.1
+  # gps_measurement_noise_good: GPS信号良好时的测量噪声（协方差小于阈值时使用）
+  gps_measurement_noise_good: 0.1
+  # gps_measurement_noise_bad: GPS信号差时的测量噪声（协方差大于阈值时使用，增大噪声降低GPS权重）
+  gps_measurement_noise_bad: 10.0
+  # imu_measurement_noise_yaw: IMU航向角测量噪声，用于IMU航向校正的观测噪声矩阵R
+  imu_measurement_noise_yaw: 0.1
+
+  # 日志配置
+  log_frequency_stats: true
+
+  # ========== 融合模式配置 ==========
+  # 是否融合odom和imu (true: 融合odom+imu+GPS, false: 只使用GPS)
+  use_odom_imu_fusion: true
+
+# ============================================================
+# 规划器节点配置
+# ============================================================
+planner_node:
+  # ========== 订阅话题 ==========
+  subscriptions:
+    # 机器人里程计
+    robot_pose_topic: "/navigation/map_pose"
+    # 导航地图坐标（从 map_node 订阅）
+    nav_map_points_topic: "/navigation/nav_map_points"
+
+  # ========== 发布话题 ==========
+  publications:
+    path_topic: "/navigation/planned_path"
+
+  # 工作频率 (Hz)
+  update_frequency: 5.0
+
+  # 时间戳超时时间 (秒)
+  pose_timeout: 0.2
+
+  # 到达判定阈值 (米)
+  arrival_threshold: 3.0
+
+  # 稀疏化参数
+  # 相邻两个路点之间的最小距离（米），根据地图分辨率计算具体间隔的格子数
+  # 用于路径稀疏化，减少路点数量但保持路径的关键拐点
+  max_distance_between: 5.0
+
+  # A*算法参数
+  # allow_diagonal: 控制是否允许对角线移动。
+  # false=只允许上下左右4方向移动，true=允许8方向（含对角线）
+  allow_diagonal: false
+
+  # 日志配置
+  log_enabled: true
+
+# ============================================================
+# 激光雷达Costmap节点配置
+# ============================================================
+lidar_costmap_node:
+  # ========== 订阅话题 ==========
+  subscriptions:
+    scan_topic: "/utlidar/cloud"           # 激光雷达扫描话题
+
+  # ========== 发布话题 ==========
+  publications:
+    obs_output_topic: "/navigation/lidar_obs"          # 障碍物距离输出话题
+    local_costmap_topic: "/navigation/local_costmap"   # 局部costmap输出（供地图节点使用）
+
+  # 高度过滤 (米)
+  min_height: 0.0             # 最低高度
+  max_height: 1.0              # 最高高度
+
+  # 稀疏化参数
+  downsampling_factor: 3        # 降采样因子，每隔n个点取1个
+
+  # 地图更新频率 (Hz)
+  update_frequency: 10.0
+
+  # Costmap参数
+  costmap_resolution: 0.1       # 局部costmap分辨率 (米/格)
+  costmap_value: 100            # 障碍物填充值
+
+  # RL输入参数
+  bin_num: 20                   # 前方180度的分区数量
+
+  # 日志配置
+  log_enabled: true
+
+# ============================================================
+# Odom节点配置
+# ============================================================
+odom_node:
+  # ========== 订阅话题 ==========
+  subscriptions:
+    old_odom_topic: "/utlidar/robot_odom"   # 旧odom（机器狗开机自启动）
+    gps_topic: "/rtk_fix"                   # RTK GPS
+    map_origin_gps_topic: "/navigation/map_origin_gps"  # 地图原点GPS（来自map_node）
+
+  # ========== 发布话题 ==========
+  publications:
+    new_odom_topic: "/navigation/robot_odom"  # 新odom（原点为main.py启动时GPS）
+    new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（供tf_publisher使用）
+
+  # 日志配置
+  log_enabled: true
+
+# ============================================================
+# TF发布节点配置
+# ============================================================
+tf_publisher:
+  # URDF 文件路径
+  urdf_path: "/home/unitree/navigation_system/URDF/GO2_URDF/urdf/go2_description.urdf"
+
+  # 订阅话题
+  subscriptions:
+    map_origin_gps_topic: "/navigation/map_origin_gps"      # 地图原点GPS（来自map_node）
+    new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（来自odom_node）
+    new_odom_topic: "/navigation/robot_odom"    # 新odom（来自odom_node）
+
+  # 日志配置
+  log_enabled: true
+
+# ============================================================
+# 地图节点配置
+# ============================================================
+map_node:
+  # ========== 订阅话题 ==========
+  subscriptions:
+    gps_path_topic: "/navigation_control"              # 下发的 GPS 导航路径
+    robot_gps_topic: "/rtk_fix"               # 机器人 GPS
+    fusion_pose_topic: "/navigation/fusion_pose"          # 融合定位
+    rtk_imu_topic: "/imu/data"                # RTK IMU
+    local_costmap_topic: "/navigation/local_costmap"      # 接收局部costmap
+
+  # ========== 发布话题 ==========
+  publications:
+    map_topic: "/map"                         # 全局地图（供rviz2可视化和其他节点使用）
+    map_update_topic: "/map_update"           # 地图增量更新（OccupancyGridUpdate）
+    nav_map_points_topic: "/navigation/nav_map_points"    # 导航地图坐标（供 planner_node 使用）
+    map_pose_topic: "/navigation/map_pose"               # 计算出的地图坐标系定位
+    map_origin_gps_topic: "/navigation/map_origin_gps"  # 地图原点GPS（供tf_publisher使用）
+
+  # 地图更新频率 (Hz)
+  update_frequency: 10.0
+
+  # 日志配置
+  log_enabled: true
+
+# ============================================================
+# 控制器节点配置
+# ============================================================
+controller_node:
+  # ========== 订阅话题 ==========
+  subscriptions:
+    path_topic: "/navigation/planned_path"           # 路径话题（来自 planner_node）
+    lidar_obs_topic: "/navigation/lidar_obs"         # 障碍物观测（来自 lidar_costmap_node）
+    map_pose_topic: "/navigation/map_pose"           # 机器狗地图坐标（来自 map_node）
+    odom_topic: "/odom"               # 里程计
+    imu_topic: "/imu/data"                # IMU（室外模式）
+
+  # ========== 发布话题 ==========
+  publications:
+    cmd_topic: "/cmd_vel"                # 控制指令
+
+  # 模型配置
+  model_path: "models/policy_navigation.pt"  # PyTorch 模型路径
+
+  # 控制参数
+  max_v: 2.5                             # 最大线速度 (m/s)
+  max_w: 0.5                             # 最大角速度 (rad/s)
+  arrival_threshold: 1.0                  # 到达目标点阈值 (米)
+
+  # 工作频率 (Hz)
+  update_frequency: 5.0
+
+  # 日志配置
+  log_enabled: true
+
+# ============================================================
+# 雷达360度融合节点配置
+# ============================================================
+lidar_360_fusion_node:
+  # 订阅话题
+  scan_topic: "/utlidar/cloud_deskewed"   # deskewed后的雷达点云
+  imu_topic: "/imu/data"                  # IMU数据
+
+  # 发布话题
+  output_topic: "/utlidar/cloud_360"      # 360度融合点云
+
+  # 累积帧数 (根据雷达转速调整)
+  # 雷达转速约259度/秒，15.4Hz，每帧约16.86度
+  # 需要21帧才能覆盖360度
+  num_frames_to_accumulate: 21
+
+  # 雷达旋转速度 (度/秒)，从LidarState获取
+  rotation_speed: 259.4
+
+  # 雷达扫描周期 (秒)
+  scan_period: 0.065
+
+  # 距离过滤 (米)
+  min_distance: 0.1
+  max_distance: 100.0
+
+  # 超时设置 (秒)
+  pointcloud_timeout: 0.5
+  imu_timeout: 1.0  # 增加IMU超时时间
+
+# ============================================================
+# 通用配置
+# ============================================================
+common:
+  # 日志目录
+  log_dir: "logs"
+
+  # ============================================================
+  # 测试模式配置
+  # ============================================================
+  # 开启测试模式时不启动 controller_node，由遥控器手动控制机器人
+  test_mode: true
