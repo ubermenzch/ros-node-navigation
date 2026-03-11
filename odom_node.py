@@ -9,12 +9,25 @@ odom_node - 里程计坐标转换节点
 4. 将旧 odom 转换到新 odom 并发布
 5. 发布 map -> odom 的 TF 变换
 
-坐标系关系：
-    旧 odom (/utlidar/robot_odom)
+坐标系关系（ROS标准坐标系 - 朝北开机）：
+    旧 odom (/utlidar/robot_odom)：
+         - X轴方向指向北方
+         - Y轴正方向指向西方
+         
+    新 odom (/navigation/robot_odom，原点=main.py启动时GPS)：
+         - X轴方向指向北方
+         - Y轴正方向指向西方
+         - 与旧odom角度相同，坐标有偏移
+
+转换规则：
+    - 角度：直接转发旧里程计的角度（新旧odom角度一致）
+    - 坐标：减去旧odom初始位置（新odom原点 = 旧odom初始位置）
+         
+    旧 odom
          │
-         │ 减去旧odom下机器狗初始位置和朝向
+         │ 减去旧odom初始位置（坐标偏移）
          ▼
-    新 odom (/navigation/robot_odom，原点=main.py启动时GPS)
+    新 odom (/navigation/robot_odom)
          │
          │ 减去新odom原点相对于地图中心的偏移
          ▼
@@ -244,21 +257,22 @@ class OdomNode(Node):
 
             # 计算新 odom 相对于旧 odom 的偏移
             # 新odom原点 - 旧odom原点 = -初始位置（在旧odom坐标系下）
+            # 坐标偏移：用于将旧odom坐标转换到新odom坐标
             self.new_odom_offset_x = -self.old_odom_initial_x
             self.new_odom_offset_y = -self.old_odom_initial_y
-            # 新odom Y轴朝向与旧odom Y轴朝向相同（都默认朝北）
-            self.new_odom_offset_yaw = -self.old_odom_initial_yaw
+            # 角度直接转发，偏移角度不再需要（保留仅供调试参考）
+            # self.new_odom_offset_yaw = -self.old_odom_initial_yaw
 
-            self.logger.info(f'New odom offset (old -> new): x={self.new_odom_offset_x:.4f}, y={self.new_odom_offset_y:.4f}, yaw={math.degrees(self.new_odom_offset_yaw):.2f}deg')
+            self.logger.info(f'New odom offset (old -> new): x={self.new_odom_offset_x:.4f}, y={self.new_odom_offset_y:.4f}')
 
             return
 
         # 转换到新 odom 坐标系
-        # 旧 odom 下的坐标 -> 新 odom 下的坐标
-        # 新位置 = 旧位置 - 旧初始位置
+        # 坐标需要做offset变换：新位置 = 旧位置 - 旧初始位置
         new_x = old_x - self.old_odom_initial_x
         new_y = old_y - self.old_odom_initial_y
-        new_yaw = old_yaw - self.old_odom_initial_yaw
+        # 角度直接转发旧里程计的角度（不做减法）
+        new_yaw = old_yaw
 
         # 发布新 odom
         new_odom_msg = Odometry()

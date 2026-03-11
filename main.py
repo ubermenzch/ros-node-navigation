@@ -54,14 +54,14 @@ class Nav2GPSNode(Node):
         self.get_logger().info('map_node initialized')
 
         self.get_logger().info('Starting lidar_costmap_node...')
-        from lidar_costmap_node import LidarcostmapNode
-        self.lidar_costmap_node = LidarcostmapNode()
+        from lidar_costmap_node import LidarCostmapNode
+        self.lidar_costmap_node = LidarCostmapNode()
         self.get_logger().info('lidar_costmap_node initialized')
 
-        self.get_logger().info('Starting lidar_360_fusion_node...')
-        from lidar_360_fusion_node import Lidar360FusionNode
-        self.lidar_360_fusion_node = Lidar360FusionNode()
-        self.get_logger().info('lidar_360_fusion_node initialized')
+        # self.get_logger().info('Starting lidar_360_fusion_node...')
+        # from lidar_360_fusion_node import Lidar360FusionNode
+        # self.lidar_360_fusion_node = Lidar360FusionNode()
+        # self.get_logger().info('lidar_360_fusion_node initialized')
 
         self.get_logger().info('Starting planner_node...')
         from planner_node import PlannerNode
@@ -107,7 +107,7 @@ def main(args=None):
     executor.add_node(nav_node.map_node)
     executor.add_node(nav_node.planner_node)
     executor.add_node(nav_node.lidar_costmap_node)
-    executor.add_node(nav_node.lidar_360_fusion_node)
+    # executor.add_node(nav_node.lidar_360_fusion_node)
 
     if not is_test_mode:
         executor.add_node(nav_node.controller_node)

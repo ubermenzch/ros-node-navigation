@@ -13,12 +13,15 @@ from dataclasses import dataclass
 
 @dataclass
 class MapMetadata:
-    """地图元数据"""
+    """地图元数据
+
+    坐标系：X轴正方向=正北方，Y轴正方向=正东方（ENU）
+    """
     resolution: float      # 分辨率 (米/格)
     width: int            # 地图宽度 (格数)
     height: int           # 地图高度 (格数)
-    origin_x: float       # 地图原点X坐标 (米) - 机器狗当前位置
-    origin_y: float       # 地图原点Y坐标 (米) - 机器狗当前位置
+    origin_x: float       # 地图原点X坐标 (米) - 地图左下角（原点）
+    origin_y: float       # 地图原点Y坐标 (米) - 地图左下角（原点）
     robot_x: float        # 机器狗在地图中的X坐标 (米) - 始终为0
     robot_y: float        # 机器狗在地图中的Y坐标 (米) - 始终为0
     gps_points: List[dict]  # GPS点列表 (原始GPS坐标)
@@ -160,6 +163,8 @@ class SharedMapStorage:
         """
         GPS坐标转换为地图坐标 (米)
 
+        坐标系：X轴正方向=正北方（纬度方向），Y轴正方向=正东方（经度方向）
+
         Args:
             latitude: GPS纬度
             longitude: GPS经度
@@ -174,8 +179,9 @@ class SharedMapStorage:
             delta_lat = latitude - self._metadata.origin_lat
             delta_lon = longitude - self._metadata.origin_lon
 
-            x = delta_lon * self._metadata.meters_per_degree_lon
-            y = delta_lat * self._metadata.meters_per_degree_lat
+            # X轴=北方（纬度变化），Y轴=东方（经度变化）
+            x = delta_lat * self._metadata.meters_per_degree_lat
+            y = delta_lon * self._metadata.meters_per_degree_lon
 
             return x, y
 
@@ -183,9 +189,11 @@ class SharedMapStorage:
         """
         地图坐标转换为GPS坐标
 
+        坐标系：X轴正方向=正北方（纬度方向），Y轴正方向=正东方（经度方向）
+
         Args:
-            x: 地图X坐标 (米)
-            y: 地图Y坐标 (米)
+            x: 地图X坐标 (米) - 北方方向
+            y: 地图Y坐标 (米) - 东方方向
 
         Returns:
             (latitude, longitude) GPS坐标
@@ -194,8 +202,8 @@ class SharedMapStorage:
             if self._metadata is None:
                 return None, None
 
-            lat = self._metadata.origin_lat + y / self._metadata.meters_per_degree_lat
-            lon = self._metadata.origin_lon + x / self._metadata.meters_per_degree_lon
+            lat = self._metadata.origin_lat + x / self._metadata.meters_per_degree_lat
+            lon = self._metadata.origin_lon + y / self._metadata.meters_per_degree_lon
 
             return lat, lon
 

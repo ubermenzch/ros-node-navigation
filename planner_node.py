@@ -16,6 +16,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from nav_msgs.msg import Path, PoseStamped
 import json
 import threading
 import math
@@ -27,6 +28,7 @@ from datetime import datetime
 
 from config_loader import get_config
 from shared_map_storage import get_shared_map
+from frequency_stats import FrequencyStats
 
 
 class PlannerNode(Node):
@@ -54,7 +56,7 @@ class PlannerNode(Node):
         self.path_topic = publications.get('path_topic', '/planned_path')
 
         # 规划更新参数
-        self.update_frequency = planner_config.get('update_frequency', 5.0)
+        self.frequency = planner_config.get('frequency', 5.0)
         self.pose_timeout = planner_config.get('pose_timeout', 2.0)
         self.max_distance_between = planner_config.get('max_distance_between', 0.5)
         self.allow_diagonal = planner_config.get('allow_diagonal', False)
@@ -91,7 +93,7 @@ class PlannerNode(Node):
 
         # 导航地图坐标订阅（从 map_node 获取）
         self.nav_map_points_sub = self.create_subscription(
-            String,
+            Path,
             self.nav_map_points_topic,
             self.nav_map_points_callback,
             10
@@ -99,17 +101,28 @@ class PlannerNode(Node):
 
         # ------ 发布者 ------
         self.path_pub = self.create_publisher(
-            String,
+            Path,
             self.path_topic,
             10
         )
 
         # 定时器：按指定频率执行规划
-        period = 1.0 / max(self.update_frequency, 1e-3)
+        period = 1.0 / max(self.frequency, 1e-3)
         self.timer = self.create_timer(period, self.update)
 
         # 初始化日志（在订阅/发布创建之后）
         self._init_logger(planner_config.get('log_enabled', True))
+
+        # 初始化频率统计
+        self.freq_stats = FrequencyStats(
+            node_name='planner_node',
+            target_frequency=self.frequency,
+            logger=self.logger,
+            ros_logger=self.get_logger(),
+            window_size=10,
+            warn_threshold=0.8,
+            log_interval=5.0
+        )
 
     # ==================== 日志 ====================
 
@@ -139,7 +152,7 @@ class PlannerNode(Node):
             f'  订阅机器人 pose: {self.pose_sub.topic}',
             f'  订阅导航地图点: {self.nav_map_points_sub.topic}',
             f'  发布路径: {self.path_pub.topic}',
-            f'  更新频率: {self.update_frequency} Hz',
+            f'  工作频率: {self.frequency} Hz',
             f'  到达阈值: {self.arrival_threshold} m',
             f'  详细日志已写入: {log_file}',
         ]
@@ -175,36 +188,33 @@ class PlannerNode(Node):
         except Exception as e:
             self.logger.error(f'Failed to parse fusion pose: {e}')
 
-    def nav_map_points_callback(self, msg: String):
+    def nav_map_points_callback(self, msg: Path):
         """
         接收导航地图坐标（从 map_node 订阅）
         
-        消息格式 (JSON):
-        {
-            "batch_id": "batch_xxx",
-            "batch_number": 0,
-            "points": [
-                {"x": map_x1, "y": map_y1},
-                {"x": map_x2, "y": map_y2},
-                ...
-            ],
-            "timestamp": 1234567890.123
-        }
+        消息格式: nav_msgs/Path
+        - header.frame_id = 'map'
+        - poses 包含导航地图坐标点
         """
         try:
-            data = json.loads(msg.data)
+            points = []
+            for pose_stamped in msg.poses:
+                points.append({
+                    'x': pose_stamped.pose.position.x,
+                    'y': pose_stamped.pose.position.y
+                })
         except Exception as e:
             self.logger.error(f'Failed to parse nav map points: {e}')
             return
 
         with self.path_lock:
-            self.nav_map_points = data.get('points', [])
-            self.batch_id = data.get('batch_id', '')
-            self.batch_number = data.get('batch_number', -1)
+            self.nav_map_points = points
+            self.batch_id = ''
+            self.batch_number = -1
             self.unreached_index = 0
             self.task_completed = False
 
-        self.logger.info(f'Received nav map points: {len(self.nav_map_points)} points, batch_number: {self.batch_number}')
+        self.logger.info(f'Received nav map points: {len(self.nav_map_points)} points')
 
     def path_callback(self, msg: String):
         """不再需要，从 map_node 订阅导航地图坐标"""
@@ -214,6 +224,9 @@ class PlannerNode(Node):
 
     def update(self):
         """按固定频率执行一次规划"""
+        # 记录频率统计
+        self.freq_stats.tick()
+
         # 任务完成则空转
         with self.path_lock:
             if self.task_completed:
@@ -467,11 +480,23 @@ class PlannerNode(Node):
 
     def publish_path(self, waypoints: list):
         """发布稀疏后的路径"""
-        msg = String()
-        msg.data = json.dumps({
-            'waypoints': waypoints,
-            'timestamp': self.get_clock().now().nanoseconds / 1e9,
-        })
+        msg = Path()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'map'
+        
+        for wp in waypoints:
+            pose = PoseStamped()
+            pose.header.stamp = msg.header.stamp
+            pose.header.frame_id = 'map'
+            pose.pose.position.x = wp[0]
+            pose.pose.position.y = wp[1]
+            pose.pose.position.z = 0.0
+            pose.pose.orientation.x = 0.0
+            pose.pose.orientation.y = 0.0
+            pose.pose.orientation.z = 0.0
+            pose.pose.orientation.w = 1.0
+            msg.poses.append(pose)
+        
         self.path_pub.publish(msg)
 
 

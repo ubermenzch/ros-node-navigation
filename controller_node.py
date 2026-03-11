@@ -16,8 +16,8 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import SingleThreadedExecutor
-from sensor_msgs.msg import Imu
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String, Float64MultiArray
 import json
 import threading
@@ -29,6 +29,7 @@ import logging
 from datetime import datetime
 
 from config_loader import get_config
+from frequency_stats import FrequencyStats
 
 
 class ControllerNode(Node):
@@ -61,8 +62,7 @@ class ControllerNode(Node):
         self.map_pose_topic = subscriptions.get('map_pose_topic', '/map_pose')
         
         # 速度话题配置
-        self.wheel_odom_topic = subscriptions.get('wheel_odom_topic', '/wheel_odom')
-        self.imu_topic = subscriptions.get('imu_topic', '/imu/data')
+        self.odom_topic = subscriptions.get('odom_topic', '/navigation/robot_odom')
         
         # 发布话题
         self.cmd_topic = publications.get('cmd_topic', '/cmd_vel')
@@ -82,7 +82,7 @@ class ControllerNode(Node):
         self.robot_pose = None  # {'x': x, 'y': y, 'yaw': yaw}
         
         # 障碍物观测
-        self.latest_obs = None  # obs_min 数组
+        self.latest_obs = None  # obs_min_distance 数组
         
         # 速度
         self.velocity = {'v': 0.0, 'w': 0.0}
@@ -97,7 +97,7 @@ class ControllerNode(Node):
 
         # 创建订阅者 - 路径
         self.path_sub = self.create_subscription(
-            String,
+            Path,
             self.path_topic,
             self.path_callback,
             10
@@ -105,7 +105,7 @@ class ControllerNode(Node):
 
         # 创建订阅者 - 障碍物观测
         self.obs_sub = self.create_subscription(
-            String,
+            LaserScan,
             self.lidar_obs_topic,
             self.obs_callback,
             10
@@ -119,18 +119,11 @@ class ControllerNode(Node):
             10
         )
 
-        # 创建订阅者 - 速度（wheel_odom 获取线速度 v，imu 获取角速度 w）
-        self.wheel_odom_sub = self.create_subscription(
+        # 创建订阅者 - 速度（从 odom 获取线速度 v 和角速度 w）
+        self.odom_sub = self.create_subscription(
             Odometry,
-            self.wheel_odom_topic,
-            self.wheel_odom_callback,
-            10
-        )
-
-        self.imu_sub = self.create_subscription(
-            Imu,
-            self.imu_topic,
-            self.imu_callback,
+            self.odom_topic,
+            self.odom_callback,
             10
         )
 
@@ -141,16 +134,30 @@ class ControllerNode(Node):
             10
         )
 
-        # 更新频率
-        self.update_frequency = controller_config.get('update_frequency', 10.0)
+        # 工作频率
+        self.frequency = controller_config.get('frequency', 10.0)
 
         # 定时器：按指定频率执行控制
-        period = 1.0 / max(self.update_frequency, 1e-3)
+        period = 1.0 / max(self.frequency, 1e-3)
         self.timer = self.create_timer(period, self.update)
+
+        # 初始化频率统计
+        self.freq_stats = FrequencyStats(
+            node_name='controller_node',
+            target_frequency=self.frequency,
+            logger=None,  # 会在 _init_logger 之后设置
+            ros_logger=self.get_logger(),
+            window_size=10,
+            warn_threshold=0.8,
+            log_interval=5.0
+        )
 
         # 初始化日志（在订阅/发布创建之后，加载模型之前）
         log_enabled = controller_config.get('log_enabled', True)
         self._init_logger(log_enabled)
+
+        # 更新 logger 引用
+        self.freq_stats.logger = self.logger
 
         # 加载模型
         self.model = None
@@ -183,10 +190,9 @@ class ControllerNode(Node):
             f'  订阅路径: {self.path_sub.topic}',
             f'  订阅激光雷达障碍物: {self.obs_sub.topic}',
             f'  订阅地图 pose: {self.pose_sub.topic}',
-            f'  订阅里程计(v): {self.wheel_odom_sub.topic}',
-            f'  订阅 IMU(w): {self.imu_sub.topic}',
+            f'  订阅里程计(v,w): {self.odom_sub.topic}',
             f'  发布控制命令: {self.cmd_pub.topic}',
-            f'  更新频率: {self.update_frequency} Hz',
+            f'  工作频率: {self.frequency} Hz',
             f'  最大速度: {self.max_v} m/s, 最大角速度: {self.max_w} rad/s',
             f'  详细日志已写入: {log_file}',
         ]
@@ -209,19 +215,50 @@ class ControllerNode(Node):
         
         try:
             import torch
-            self.model = torch.jit.load(model_path)
-            self.model.eval()
-            self.logger.info(f'Loaded PyTorch model: {model_path}')
+            # 使用 torch.load 加载 .pth 检查点文件
+            # weights_only=False 允许加载完整的模型对象（非仅权重）
+            checkpoint = torch.load(model_path, weights_only=False, map_location='cpu')
+            
+            # 检查加载的内容类型
+            if isinstance(checkpoint, torch.nn.Module):
+                # 如果直接保存的是完整模型
+                self.model = checkpoint
+                self.model.eval()
+                self.logger.info(f'Loaded full PyTorch model: {model_path}')
+            elif isinstance(checkpoint, dict):
+                # 如果保存的是 state_dict，检查是否有 'model' 或 'actor' 键
+                if 'model' in checkpoint:
+                    self.logger.info('Checkpoint contains model state_dict')
+                    # 需要根据具体模型架构加载，此处记录警告
+                    self.logger.warning('state_dict detected but model architecture unknown - using as-is')
+                    self.model = checkpoint['model'] if isinstance(checkpoint['model'], torch.nn.Module) else checkpoint
+                elif 'actor' in checkpoint:
+                    self.logger.info('Checkpoint contains actor state_dict')
+                    self.model = checkpoint['actor']
+                else:
+                    self.logger.warning(f'Unknown checkpoint keys: {checkpoint.keys()}')
+                    self.model = checkpoint
+            else:
+                self.model = checkpoint
+                self.model.eval()
+                
+            self.logger.info(f'Successfully loaded PyTorch model from: {model_path}')
         except Exception as e:
             self.logger.error(f'Failed to load model: {e}')
             self.model = None
 
-    def path_callback(self, msg: String):
+    def path_callback(self, msg: Path):
         """接收路径"""
         try:
-            data = json.loads(msg.data)
-            waypoints = data.get('waypoints', [])
-            timestamp = data.get('timestamp', 0.0)
+            waypoints = []
+            timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            
+            for pose_stamped in msg.poses:
+                wp = [
+                    pose_stamped.pose.position.x,
+                    pose_stamped.pose.position.y
+                ]
+                waypoints.append(wp)
             
             if not waypoints:
                 return
@@ -237,14 +274,21 @@ class ControllerNode(Node):
         except Exception as e:
             self.logger.error(f'Failed to parse path: {e}')
 
-    def obs_callback(self, msg: String):
+    def obs_callback(self, msg: LaserScan):
         """接收障碍物观测"""
         try:
-            data = json.loads(msg.data)
-            obs_min = data.get('obs_min', [])
+            # 从 LaserScan 获取 ranges
+            obs_min_distance = np.array(msg.ranges, dtype=np.float32)
+            
+            # 处理无效值 (inf, nan)
+            obs_min_distance = np.where(
+                np.isfinite(obs_min_distance),
+                obs_min_distance,
+                msg.range_max  # 用最大距离替换无效值
+            )
             
             with self.obs_lock:
-                self.latest_obs = np.array(obs_min, dtype=np.float32)
+                self.latest_obs = obs_min_distance
                 
         except Exception as e:
             self.logger.error(f'Failed to parse obs: {e}')
@@ -264,42 +308,36 @@ class ControllerNode(Node):
         except Exception as e:
             self.logger.error(f'Failed to parse pose: {e}')
 
-    def wheel_odom_callback(self, msg: Odometry):
-        """从 wheel_odom 获取线速度 v"""
+    def odom_callback(self, msg: Odometry):
+        """从 odom 获取线速度 v 和角速度 w"""
         try:
+            # 线速度
             vx = msg.twist.twist.linear.x
             vy = msg.twist.twist.linear.y
             v = math.sqrt(vx * vx + vy * vy)
             
-            with self.velocity_lock:
-                self.velocity['v'] = v
-                
-        except Exception as e:
-            self.logger.error(f'Failed to parse wheel_odom: {e}')
-
-    def imu_callback(self, msg: Imu):
-        """从 imu 获取角速度 w"""
-        try:
-            w = msg.angular_velocity.z
+            # 角速度
+            w = msg.twist.twist.angular.z
             
             with self.velocity_lock:
+                self.velocity['v'] = v
                 self.velocity['w'] = w
                 
         except Exception as e:
-            self.logger.error(f'Failed to parse imu: {e}')
+            self.logger.error(f'Failed to parse odom: {e}')
 
     def compute_state(self) -> np.ndarray:
         """计算状态"""
         state_parts = []
         
-        # 1. obs_min
+        # 1. obs_min_distance
         with self.obs_lock:
             if self.latest_obs is not None:
-                obs_min = self.latest_obs
+                obs_min_distance = self.latest_obs
             else:
-                obs_min = np.ones(20, dtype=np.float32)  # 默认值
+                obs_min_distance = np.ones(20, dtype=np.float32)  # 默认值
         
-        state_parts.append(obs_min)
+        state_parts.append(obs_min_distance)
         
         # 2. distance, sin, cos
         with self.path_lock:
@@ -419,7 +457,9 @@ class ControllerNode(Node):
 
     def update(self):
         """执行一次控制循环"""
-        
+        # 记录频率统计
+        self.freq_stats.tick()
+
         # 检查是否有路径和位置
         with self.path_lock:
             # 指针指向最后一个目标点的后一位时，空操作（等待新路径）
@@ -453,7 +493,7 @@ def main(args=None):
     node = ControllerNode()
 
     # 创建定时器
-    period = 1.0 / node.update_frequency
+    period = 1.0 / node.frequency
     timer = node.create_timer(period, node.update)
 
     executor = SingleThreadedExecutor()

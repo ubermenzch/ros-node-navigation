@@ -24,6 +24,7 @@ from datetime import datetime
 from typing import Optional, Deque
 
 from config_loader import get_config
+from frequency_stats import FrequencyStats
 
 
 
@@ -117,7 +118,7 @@ class EKFFusionNode(Node):
         self.fusion_pose_topic = publications.get('fusion_pose_topic', '/fusion_pose')
         self.gps_weight_topic = publications.get('gps_weight_topic', '/gps_weight')
 
-        self.fusion_frequency = ekf_config.get('frequency', 10.0)
+        self.frequency = ekf_config.get('frequency', 10.0)
         self.gps_timeout = ekf_config.get('gps_timeout', 2.0)
         self.odom_timeout = ekf_config.get('odom_timeout', 1.0)
         self.imu_timeout = ekf_config.get('imu_timeout', 0.5)
@@ -196,8 +197,19 @@ class EKFFusionNode(Node):
         )
 
         # 定时器：按指定频率执行 EKF 融合
-        period = 1.0 / max(self.fusion_frequency, 1e-3)
+        period = 1.0 / max(self.frequency, 1e-3)
         self.timer = self.create_timer(period, self.fuse)
+
+        # 节点主循环频率统计
+        self.node_freq_stats = FrequencyStats(
+            node_name='ekf_fusion_node',
+            target_frequency=self.frequency,
+            logger=self.logger,
+            ros_logger=self.get_logger(),
+            window_size=10,
+            warn_threshold=0.8,
+            log_interval=5.0
+        )
 
     def _init_logger(self):
         """初始化文件日志系统"""
@@ -223,7 +235,7 @@ class EKFFusionNode(Node):
         # 终端输出初始化信息（同时写入文件日志）
         init_info = [
             f'EKF Fusion Node initialized',
-            f'  融合频率: {self.fusion_frequency} Hz',
+            f'  工作频率: {self.frequency} Hz',
             f'  GPS 话题: {self.gps_topic}',
             f'  ODOM 话题: {self.odom_topic}',
             f'  IMU 话题: {self.imu_topic}',
@@ -639,8 +651,11 @@ class EKFFusionNode(Node):
 
     def fuse(self):
         """执行一次EKF融合（有什么用什么）"""
+        # 记录频率统计
+        self.node_freq_stats.tick()
+
         current_time = self.get_clock().now().nanoseconds / 1e9
-        dt = 1.0 / self.fusion_frequency
+        dt = 1.0 / self.frequency
 
         # 获取最新GPS数据和时间戳
         with self.sensor_lock:
@@ -829,7 +844,7 @@ def run_ekf_fusion_node(args=None):
     node.initialize_from_sensors()
 
     # 创建定时器执行融合
-    period = 1.0 / node.fusion_frequency
+    period = 1.0 / node.frequency
 
     timer = node.create_timer(period, node.fuse)
 

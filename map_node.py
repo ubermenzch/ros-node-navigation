@@ -10,16 +10,16 @@
 5. 发布地图到 topic 供可视化和其他节点使用
 
 坐标系约定：
-室外模式：Y轴正方向 = 正北方，X轴正方向 = 正东方
+X轴正方向 = 正北方，Y轴正方向 = 正东方（ENU 坐标系）
 """
 
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import SingleThreadedExecutor
-from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import OccupancyGrid, Path, PoseStamped
 from map_msgs.msg import OccupancyGridUpdate
 from geometry_msgs.msg import Pose, Quaternion, TransformStamped
-from sensor_msgs.msg import NavSatFix, Imu
+from sensor_msgs.msg import Imu
 from std_msgs.msg import String
 import tf2_ros
 import json
@@ -33,6 +33,7 @@ from datetime import datetime
 
 from shared_map_storage import MapMetadata, get_shared_map
 from config_loader import get_config
+from frequency_stats import FrequencyStats
 
 
 class MapNode(Node):
@@ -74,7 +75,6 @@ class MapNode(Node):
 
         # 订阅话题
         self.gps_path_topic = subscriptions.get('gps_path_topic', '/gps_path')
-        self.robot_gps_topic = subscriptions.get('robot_gps_topic', '/rtk_fix')
         self.fusion_pose_topic = subscriptions.get('fusion_pose_topic', '/fusion_pose')
         self.rtk_imu_topic = subscriptions.get('rtk_imu_topic', '/rtk_imu')
         self.local_costmap_topic = subscriptions.get('local_costmap_topic', '/local_costmap')
@@ -94,16 +94,13 @@ class MapNode(Node):
         # 计算出的 map_pose
         self.latest_map_pose = None
 
-        # 机器人 GPS
-        self.latest_robot_gps = None
-
         # 导航 GPS 点
         self.nav_gps_points = []
         self.batch_id = ""
         self.batch_counter = 0  # 组号，从 0 开始递增
 
-        # 地图更新频率
-        self.update_frequency = map_node_config.get('update_frequency', 10.0)
+        # 工作频率
+        self.frequency = map_node_config.get('frequency', 10.0)
 
         # 首次发布标志
         self.first_map_published = False
@@ -128,7 +125,7 @@ class MapNode(Node):
 
         # 创建发布者 - 导航地图坐标
         self.nav_map_points_pub = self.create_publisher(
-            String,
+            Path,
             self.nav_map_points_topic,
             10
         )
@@ -155,14 +152,6 @@ class MapNode(Node):
             10
         )
         
-        # 创建订阅者 - 机器人 GPS
-        self.robot_gps_sub = self.create_subscription(
-            NavSatFix,
-            self.robot_gps_topic,
-            self.robot_gps_callback,
-            10
-        )
-        
         # 创建订阅者 - 融合定位（odom坐标系）
         self.fusion_pose_sub = self.create_subscription(
             String,
@@ -181,19 +170,30 @@ class MapNode(Node):
         
         # 创建订阅者 - 局部 costmap
         self.local_costmap_sub = self.create_subscription(
-            String,
+            OccupancyGrid,
             self.local_costmap_topic,
             self.local_costmap_callback,
             10
         )
 
         # 定时器：按指定频率发布地图和 map_pose
-        period = 1.0 / max(self.update_frequency, 1e-3)
+        period = 1.0 / max(self.frequency, 1e-3)
         self.timer = self.create_timer(period, self.update)
 
         # 初始化日志（在订阅/发布创建之后）
         log_enabled = map_node_config.get('log_enabled', True)
         self._init_logger(log_enabled)
+
+        # 初始化频率统计
+        self.freq_stats = FrequencyStats(
+            node_name='map_node',
+            target_frequency=self.frequency,
+            logger=self.logger,
+            ros_logger=self.get_logger(),
+            window_size=10,
+            warn_threshold=0.8,
+            log_interval=5.0
+        )
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
@@ -226,16 +226,12 @@ class MapNode(Node):
             f'  发布地图: {self.map_topic}',
             f'  发布地图 pose: {self.map_pose_topic}',
             f'  分辨率: {self.resolution}m',
-            f'  更新频率: {self.update_frequency} Hz',
+            f'  工作频率: {self.frequency} Hz',
         ]
 
         for line in init_info:
             self.logger.info(line)  # 写入文件
             self.get_logger().info(line)  # 输出到终端
-
-    def robot_gps_callback(self, msg: NavSatFix):
-        """接收机器人 GPS"""
-        self.latest_robot_gps = msg
 
     def fusion_pose_callback(self, msg: String):
         """
@@ -264,9 +260,9 @@ class MapNode(Node):
     def rtk_imu_callback(self, msg: Imu):
         """
         接收 RTK IMU 数据，获取绝对朝向（室外模式使用）
-        
-        /rtk_imu 提供的朝向：朝东0度，朝北90度（地球尺度绝对方向）
-        注意：这个朝向与地图坐标系一致，因为地图Y轴正方向=正北方
+
+        /rtk_imu 提供的朝向：朝北0度，朝东90度（地球尺度绝对方向）
+        注意：这个朝向与地图坐标系一致，因为地图X轴正方向=正北方
         """
         try:
             # 从四元数提取 yaw
@@ -372,9 +368,11 @@ class MapNode(Node):
             self.logger.warning('Received empty GPS path message')
             return
 
-        if self.latest_robot_gps is None:
-            self.logger.warning('No robot GPS yet, cannot generate map for new path')
-            return
+        # 检查 fusion_pose 是否有效
+        with self.pose_lock:
+            if self.latest_fusion_pose is None or not self.latest_fusion_pose.get('valid', False):
+                self.logger.warning('No valid fusion_pose yet, cannot generate map for new path')
+                return
 
         with self.path_lock:
             self.nav_gps_points = points
@@ -389,7 +387,10 @@ class MapNode(Node):
         self.compute_and_publish_nav_map_points()
 
     def _gps_to_relative_coords(self, waypoints):
-        """将 GPS 坐标转换为相对坐标（米），以第一个点为原点"""
+        """将 GPS 坐标转换为相对坐标（米），以第一个点为原点
+
+        坐标系：X轴正方向=正北方，Y轴正方向=正东方（ENU）
+        """
         if not waypoints:
             return []
 
@@ -407,8 +408,9 @@ class MapNode(Node):
             delta_lon = lon - origin_lon
             delta_lat = lat - origin_lat
 
-            x = delta_lon * meters_per_degree_lon
-            y = delta_lat * meters_per_degree_lat
+            # X轴=北方（由纬度变化得到），Y轴=东方（由经度变化得到）
+            x = delta_lat * meters_per_degree_lat
+            y = delta_lon * meters_per_degree_lon
 
             map_points.append((x, y))
 
@@ -444,7 +446,10 @@ class MapNode(Node):
         return interpolated
 
     def _compute_road_mask(self, centerline_points, origin_x: float, origin_y: float, grid_size: int):
-        """计算道路区域掩码"""
+        """计算道路区域掩码
+
+        坐标系：X轴正方向=正北方，Y轴正方向=正东方（ENU）
+        """
         mask = np.zeros((grid_size, grid_size), dtype=bool)
 
         if len(centerline_points) < 2:
@@ -456,30 +461,32 @@ class MapNode(Node):
             p1 = centerline_points[i]
             p2 = centerline_points[i + 1]
 
-            dx = p2[0] - p1[0]
-            dy = p2[1] - p1[1]
+            dx = p2[0] - p1[0]  # 北方方向增量
+            dy = p2[1] - p1[1]  # 东方方向增量
             dist = math.sqrt(dx * dx + dy * dy)
 
             if dist < 1e-6:
                 continue
 
-            ux = dx / dist
-            uy = dy / dist
+            ux = dx / dist  # 道路方向单位向量（北）
+            uy = dy / dist  # 道路方向单位向量（东）
 
-            px = -uy
-            py = ux
+            # 垂直方向：东向（原来西向）
+            px = uy
+            py = -ux
 
             steps = max(1, int(dist / self.resolution))
             for j in range(steps + 1):
                 t = j / steps
-                cx = p1[0] + t * dx
-                cy = p1[1] + t * dy
+                cx = p1[0] + t * dx  # 中心点 X（北）
+                cy = p1[1] + t * dy  # 中心点 Y（东）
 
                 for dx_offset in [-half_interval, half_interval]:
                     for dy_offset in [-half_interval, half_interval]:
                         wx = cx + px * dx_offset + ux * dy_offset
                         wy = cy + py * dy_offset + uy * dy_offset
 
+                        # X轴=北方→col增加，Y轴=东方→row减少
                         col = int((wx - origin_x) / self.resolution)
                         row = int((origin_y + grid_size * self.resolution - wy) / self.resolution)
 
@@ -489,74 +496,96 @@ class MapNode(Node):
         return mask
 
     def generate_and_store_map(self):
-        """根据 机器人GPS + 导航GPS点 生成地图"""
-        if self.latest_robot_gps is None:
-            self.logger.warning('No robot GPS position, cannot generate map')
-            return
-
+        """根据 导航GPS点 生成地图，地图原点为最远两点连线的中点"""
         with self.path_lock:
             if not self.nav_gps_points:
                 self.logger.warning('No navigation GPS points, cannot generate map')
                 return
 
-            all_points = [{
-                'latitude': float(self.latest_robot_gps.latitude),
-                'longitude': float(self.latest_robot_gps.longitude),
-            }]
-            all_points.extend(self.nav_gps_points)
-
         self.logger.info('Generating map from GPS path...')
 
-        # 记录 odom 坐标系的原点位置（机器人创建地图时的位置）
-        # fusion_pose 中的 x,y 就是相对于 odom 原点的坐标
+        # 获取当前 fusion_pose（gcj 坐标系）作为机器人当前位置
         with self.pose_lock:
-            if self.latest_fusion_pose is not None:
+            if self.latest_fusion_pose is not None and self.latest_fusion_pose.get('valid', False):
                 odom_origin_x = self.latest_fusion_pose.get('x', 0.0)
                 odom_origin_y = self.latest_fusion_pose.get('y', 0.0)
+                
+                # 将 fusion_pose（gcj 坐标）作为机器人 GPS 点加入计算
+                robot_gps_point = {
+                    'latitude': odom_origin_x,  # fusion_pose x = gcj 纬度方向
+                    'longitude': odom_origin_y  # fusion_pose y = gcj 经度方向
+                }
             else:
                 odom_origin_x = 0.0
                 odom_origin_y = 0.0
+                robot_gps_point = None
+                self.logger.warning('No valid fusion_pose, using (0, 0) as odom origin')
 
-        # 计算地图范围
-        map_points = self._gps_to_relative_coords(all_points)
-        robot_x, robot_y = map_points[0]  # 这是 GPS 原点（相对于机器人当前位置的 GPS 坐标）
-
-        max_x_distance = 0.0
-        max_y_distance = 0.0
-
+        # 找到最远两点（包括机器人当前位置 + 所有航点）
+        all_gps_points = self.nav_gps_points.copy()
+        
+        # 将机器人 GPS 点加入（fusion_pose）
+        if robot_gps_point is not None:
+            all_gps_points.insert(0, robot_gps_point)
+        
+        if len(all_gps_points) < 2:
+            self.logger.warning('Need at least 2 GPS points to generate map')
+            return
+        
+        # 转换为相对坐标
+        map_points = self._gps_to_relative_coords(all_gps_points)
+        
+        # 找最远两点
+        max_dist = 0.0
+        farthest_pair = (0, 1)
         for i in range(len(map_points)):
             for j in range(i + 1, len(map_points)):
                 p1 = map_points[i]
                 p2 = map_points[j]
+                dist = math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+                if dist > max_dist:
+                    max_dist = dist
+                    farthest_pair = (i, j)
+        
+        # 最远两点连线的中点作为地图原点
+        p1 = map_points[farthest_pair[0]]
+        p2 = map_points[farthest_pair[1]]
+        map_center_x = (p1[0] + p2[0]) / 2.0
+        map_center_y = (p1[1] + p2[1]) / 2.0
+        
+        self.logger.info(f'Farthest points: {farthest_pair}')
+        self.logger.info(f'  Point 1: ({p1[0]:.2f}, {p1[1]:.2f})')
+        self.logger.info(f'  Point 2: ({p2[0]:.2f}, {p2[1]:.2f})')
+        self.logger.info(f'Map center: ({map_center_x:.2f}, {map_center_y:.2f})')
 
-                x_dist = abs(p1[0] - p2[0])
-                y_dist = abs(p1[1] - p2[1])
+        # 计算地图范围（以中点为中心）
+        max_x_distance = 0.0
+        max_y_distance = 0.0
 
-                if x_dist > max_x_distance:
-                    max_x_distance = x_dist
+        for i in range(len(map_points)):
+            p = map_points[i]
+            x_dist = abs(p[0] - map_center_x)
+            y_dist = abs(p[1] - map_center_y)
 
-                if y_dist > max_y_distance:
-                    max_y_distance = y_dist
+            if x_dist > max_x_distance:
+                max_x_distance = x_dist
+
+            if y_dist > max_y_distance:
+                max_y_distance = y_dist
 
         padding = self.square_size
-        map_width = max_x_distance + 2 * padding
-        map_height = max_y_distance + 2 * padding
+        map_width = max_x_distance * 2 + 2 * padding
+        map_height = max_y_distance * 2 + 2 * padding
 
         grid_size_x = int(map_width / self.resolution)
         grid_size_y = int(map_height / self.resolution)
         grid_size = max(grid_size_x, grid_size_y)
 
-        origin_x = robot_x - padding
-        origin_y = robot_y + map_height - padding
-
-        # 计算地图中心坐标（相对于 GPS 原点）
-        map_center_x = origin_x + grid_size * self.resolution / 2.0
-        map_center_y = origin_y + grid_size * self.resolution / 2.0
+        # 地图原点（左上角）
+        origin_x = map_center_x - grid_size * self.resolution / 2.0
+        origin_y = map_center_y + grid_size * self.resolution / 2.0
 
         # 计算 map 原点相对于 odom 原点的偏移
-        # odom 原点 = 机器人当前位置 (odom_origin_x, odom_origin_y)
-        # map 原点 = 地图中心 (map_center_x, map_center_y)
-        # 注意：这里假设地图坐标系和 odom 坐标系对齐（都是 ENU）
         self.odom_offset_x = odom_origin_x - map_center_x
         self.odom_offset_y = odom_origin_y - map_center_y
         self.odom_offset_yaw = 0.0  # 假设地图和 odom 坐标系的朝向一致
@@ -567,14 +596,15 @@ class MapNode(Node):
 
         grid = np.zeros((grid_size, grid_size), dtype=np.int8)
 
-        centerline = self._interpolate_centerline(map_points[1:])
-        road_mask = self._compute_road_mask(centerline, origin_x, origin_y + grid_size * self.resolution, grid_size)
+        centerline = self._interpolate_centerline(map_points)
+        road_mask = self._compute_road_mask(centerline, origin_x, origin_y, grid_size)
 
         grid[road_mask] = 0
         grid[~road_mask] = 100
 
-        lat_origin = float(self.latest_robot_gps.latitude)
-        lon_origin = float(self.latest_robot_gps.longitude)
+        # 使用第一个 GPS 点作为原点（用于逆向计算）
+        lat_origin = float(all_gps_points[0]['latitude'])
+        lon_origin = float(all_gps_points[0]['longitude'])
 
         meters_per_degree_lat = 111320.0
         meters_per_degree_lon = 111320.0 * math.cos(math.radians(lat_origin))
@@ -585,8 +615,8 @@ class MapNode(Node):
             height=grid_size,
             origin_x=origin_x,
             origin_y=origin_y - grid_size * self.resolution,
-            robot_x=robot_x - origin_x,
-            robot_y=origin_y + grid_size * self.resolution - robot_y,
+            robot_x=map_center_x - origin_x,
+            robot_y=origin_y + grid_size * self.resolution - map_center_y,
             gps_points=self.nav_gps_points.copy(),
             origin_lat=lat_origin,
             origin_lon=lon_origin,
@@ -609,8 +639,9 @@ class MapNode(Node):
         # 发布地图原点GPS（供 tf_publisher 计算 map->odom TF）
         # 地图原点 = 地图中心 = (origin_x + grid_size*resolution/2, origin_y + grid_size*resolution/2)
         # 但我们需要发布的是地图中心对应的GPS坐标
-        map_center_lat = lat_origin + (map_center_y / meters_per_degree_lat)
-        map_center_lon = lon_origin + (map_center_x / meters_per_degree_lon)
+        # 坐标系：X轴=北方（纬度），Y轴=东方（经度）
+        map_center_lat = lat_origin + (map_center_x / meters_per_degree_lat)
+        map_center_lon = lon_origin + (map_center_y / meters_per_degree_lon)
 
         # 保存当前地图原点GPS，供持续发布
         self.current_map_origin_lat = map_center_lat
@@ -655,13 +686,23 @@ class MapNode(Node):
                 return
 
             # 发布导航地图坐标
-            msg = String()
-            msg.data = json.dumps({
-                'batch_id': self.batch_id,
-                'batch_number': self.batch_counter,
-                'points': nav_map_points,
-                'timestamp': self.get_clock().now().nanoseconds / 1e9
-            })
+            msg = Path()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = 'map'
+            
+            for point in nav_map_points:
+                pose = PoseStamped()
+                pose.header.stamp = msg.header.stamp
+                pose.header.frame_id = 'map'
+                pose.pose.position.x = point['x']
+                pose.pose.position.y = point['y']
+                pose.pose.position.z = 0.0
+                pose.pose.orientation.x = 0.0
+                pose.pose.orientation.y = 0.0
+                pose.pose.orientation.z = 0.0
+                pose.pose.orientation.w = 1.0
+                msg.poses.append(pose)
+            
             self.nav_map_points_pub.publish(msg)
 
             self.logger.info(f'Published {len(nav_map_points)} nav map points, batch_number: {self.batch_counter}')
@@ -669,20 +710,23 @@ class MapNode(Node):
             # 递增组号
             self.batch_counter += 1
 
-    def local_costmap_callback(self, msg: String):
+    def local_costmap_callback(self, msg: OccupancyGrid):
         """局部 costmap 回调，使用 map_pose 更新地图"""
         try:
-            data = json.loads(msg.data)
+            # 从 OccupancyGrid 获取 costmap 数据
+            width = msg.info.width
+            height = msg.info.height
+            resolution = msg.info.resolution
             
-            costmap_data = data.get('costmap', [])
-            width = data.get('width', 0)
-            height = data.get('height', 0)
-            resolution = data.get('resolution', 0.1)
+            # OccupancyGrid 数据是 0-100 的整数，-1 表示未知
+            # 转换为 0-1 的浮点数
+            costmap_data = np.array(msg.data, dtype=np.float32)
+            costmap_data = np.where(costmap_data < 0, 0, costmap_data)  # -1 -> 0
+            costmap_data = costmap_data / 100.0  # 转换为 0-1
             
-            if not costmap_data or width == 0 or height == 0:
-                return
-            
-            costmap = np.array(costmap_data, dtype=np.int8).reshape((height, width))
+            # 翻转 y 轴 (恢复原始方向)
+            costmap = costmap_data.reshape((height, width))
+            costmap = np.flip(costmap, axis=0)
             
             # 使用计算出的 map_pose
             with self.pose_lock:
@@ -885,6 +929,9 @@ class MapNode(Node):
 
     def update(self):
         """执行一次更新"""
+        # 记录频率统计
+        self.freq_stats.tick()
+
         # 计算并发布 map_pose
         self.compute_and_publish_map_pose()
 
@@ -913,7 +960,7 @@ def main(args=None):
     node = MapNode()
 
     # 创建定时器
-    period = 1.0 / node.update_frequency
+    period = 1.0 / node.frequency
     timer = node.create_timer(period, node.update)
 
     executor = SingleThreadedExecutor()

@@ -106,6 +106,9 @@ class TFPublisher(Node):
         # 发布静态变换 base_link -> imu
         self._publish_static_imu_tf(urdf_path)
 
+        # 发布静态变换 livox_frame -> base_link (全0)
+        self._publish_static_livox_frame_tf()
+
     def _init_logger(self):
         """初始化日志系统"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -317,6 +320,25 @@ class TFPublisher(Node):
 
         self.static_tf_broadcaster.sendTransform(t)
         self.logger.info(f'Published static TF: base_link -> imu (x={x:.5f}, y={y:.5f}, z={z:.5f})')
+
+    def _publish_static_livox_frame_tf(self):
+        """发布静态变换: livox_frame -> base_link (全0)"""
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'livox_frame'
+        t.child_frame_id = 'base_link'
+
+        t.transform.translation.x = 0.0
+        t.transform.translation.y = 0.0
+        t.transform.translation.z = 0.0
+
+        t.transform.rotation.x = 0.0
+        t.transform.rotation.y = 0.0
+        t.transform.rotation.z = 0.0
+        t.transform.rotation.w = 1.0
+
+        self.static_tf_broadcaster.sendTransform(t)
+        self.logger.info('Published static TF: livox_frame -> base_link (identity)')
 
     def _yaw_to_quaternion(self, yaw: float):
         """yaw 角转四元数"""
