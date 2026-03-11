@@ -1,0 +1,1923 @@
+
+[Wed Mar 11 09:57:38 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 09:57:38 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 09:57:38 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 09:57:38 2026] tegra-xusb 3610000.xhci: Firmware timestamp: 2021-12-01 05:27:10 UTC, Version: 80.03 release
+[Wed Mar 11 09:57:38 2026] nvme nvme0: 8/0/0 default/read/poll queues
+[Wed Mar 11 09:57:38 2026] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x2080017e result 0x56:
+[Wed Mar 11 09:57:38 2026] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x731341 result 0xffff:
+[Wed Mar 11 09:57:41 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 09:57:41 2026] OOM killer enabled.
+[Wed Mar 11 09:57:41 2026] Restarting tasks ... done.
+[Wed Mar 11 09:57:41 2026] usb 1-2: USB disconnect, device number 3
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect Enter
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Enter
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_usb_bus_stop
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	del_iface: 00000000875fa078, 2b
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	wlan0 Remove Interface 
+[Wed Mar 11 09:57:41 2026] PM: suspend exit
+[Wed Mar 11 09:57:41 2026] Generic FE-GE Realtek PHY r8169-8-100:00: attached PHY driver [Generic FE-GE Realtek PHY] (mii_bus:phy_addr=r8169-8-100:00, irq=IGNORE)
+[Wed Mar 11 09:57:41 2026] r8169 0008:01:00.0 eth0: Link is Down
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_deinit wiphy_unregister 
+[Wed Mar 11 09:57:41 2026] tcp_ack_deinit 
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit stop to bustx_thread!! 
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	usb bustx thread will to stop
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	usb bustx thread stop
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Enter
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	stio rx thread
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	usb busrx thread will to stop
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	usb busrx thread stop
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	usb msg busrx thread will to stop
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	usb msg busrx thread stop
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Exit
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Exit 
+[Wed Mar 11 09:57:41 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect exit
+[Wed Mar 11 09:57:41 2026] tegra-xusb 3610000.xhci: entering ELPG done
+[Wed Mar 11 09:57:45 2026] tegra-xusb 3610000.xhci: Firmware timestamp: 2021-12-01 05:27:10 UTC, Version: 80.03 release
+[Wed Mar 11 09:57:45 2026] r8169 0008:01:00.0 eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[Wed Mar 11 09:57:45 2026] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+[Wed Mar 11 09:57:45 2026] usb 1-2: new high-speed USB device number 4 using tegra-xusb
+[Wed Mar 11 09:57:45 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=5722, bcdDevice= 2.00
+[Wed Mar 11 09:57:45 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 09:57:45 2026] usb 1-2: Product: Aic MSC
+[Wed Mar 11 09:57:45 2026] usb 1-2: Manufacturer: aicsemi
+[Wed Mar 11 09:57:45 2026] usb 1-2: SerialNumber: 20200203
+[Wed Mar 11 09:57:45 2026] usb-storage 1-2:1.0: USB Mass Storage device detected
+[Wed Mar 11 09:57:45 2026] scsi host0: usb-storage 1-2:1.0
+[Wed Mar 11 09:57:45 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 09:57:46 2026] scsi 0:0:0:0: Direct-Access     AIC      flash            1.0  PQ: 0 ANSI: 4
+[Wed Mar 11 09:57:46 2026] sd 0:0:0:0: [sda] 7648 512-byte logical blocks: (3.92 MB/3.73 MiB)
+[Wed Mar 11 09:57:46 2026] sd 0:0:0:0: [sda] Write Protect is on
+[Wed Mar 11 09:57:46 2026] sd 0:0:0:0: [sda] Mode Sense: 03 00 80 00
+[Wed Mar 11 09:57:46 2026] sd 0:0:0:0: [sda] No Caching mode page found
+[Wed Mar 11 09:57:46 2026] sd 0:0:0:0: [sda] Assuming drive cache: write through
+[Wed Mar 11 09:57:46 2026]  sda: sda1
+[Wed Mar 11 09:57:46 2026] sd 0:0:0:0: [sda] Attached SCSI removable disk
+[Wed Mar 11 09:57:46 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 09:57:46 2026] usb 1-2: USB disconnect, device number 4
+[Wed Mar 11 09:57:46 2026] scsi 0:0:0:0: rejecting I/O to dead device
+[Wed Mar 11 09:57:47 2026] usb 1-2: new high-speed USB device number 5 using tegra-xusb
+[Wed Mar 11 09:57:47 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=88de, bcdDevice= 1.00
+[Wed Mar 11 09:57:47 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 09:57:47 2026] usb 1-2: Product: AIC8800DC
+[Wed Mar 11 09:57:47 2026] usb 1-2: Manufacturer: AICSemi
+[Wed Mar 11 09:57:47 2026] usb 1-2: SerialNumber: 20220127
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_chipmatch USE AIC8800DW
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	aicwf_parse_usb endpoints = 4
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	Number of interfaces: 1 not supported
+[Wed Mar 11 09:57:47 2026] 8800dw
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	Aic high speed USB device detected
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_rx_urb AICWF_USB_RX_URBS:20 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_tx_urb AICWF_USB_TX_URBS:200 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_msg_rx_urb AICWF_USB_MSG_RX_URBS:100 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the cpu is:3
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread set_cpu_ret is:0
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread change cpu to:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the policy of current thread is:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the current pid is:20093
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	aicwf_bus_init waiting for rx/tx thread init finish 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the cpu is:0
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread set_cpu_ret is:0
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread change cpu to:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the policy of current thread is:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the rt_priority of current thread is:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the current pid is:20094
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the policy of current thread is:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the current pid is:20098
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init enter 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init sizeof(struct rwnx_hw):20168 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init: FILTER_TCP_ACK
+[Wed Mar 11 09:57:47 2026] ========== tcp ack debug tcp_ack_init 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	aicwf_prealloc_txq_alloc txq not need to kzalloc 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	usb config read 11d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	chip_id=7, chip_sub_id=1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	set_bbpll_config Crystal not provided by CPU 
+[Wed Mar 11 09:57:47 2026] [0x40500010]=e
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	testmode=0
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_8800dc_u02.bin firmware, @ = 180000
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_8800dc_u02.bin
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_8800dc_u02.bin  
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	file md5:ec8ee791723f4bf9825a6c153a7f0a8f
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	size=31624, dst[0]=7a00edd0
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	wifisetting_cfg_addr=11019c, ldpc_cfg_addr=120980, agc_cfg_addr=120180, txgain_cfg_addr=120000
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_tbl_8800dc_u02.bin 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_tbl_8800dc_u02.bin
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_tbl_8800dc_u02.bin  
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	file md5:c0538d7493963b1f37938e6e87f9e304
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	tbl size = 1008 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	FMACFW_PATCH_TBL_8800DC_U02_DESCRIBE_BASE = 187c00 
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	di Mar 14 2025 12:29:38 - g09cea8d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110888  181219
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108ec  184d59
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110874  181279
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110658  181b09
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107dc  1874dd
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11055c  184135
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110758  187485
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110620  187631
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107e0  181b99
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110838  181dd5
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104f4  182045
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110490  182f6d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110420  1822b1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11048c  1823cd
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110688  182471
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110738  182ead
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110528  1877a1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110554  182fc1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110798  183615
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106dc  183061
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110584  1830fd
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110588  1832d5
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110634  1854e1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110638  1856b9
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110640  1858c1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11086c  18597d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105fc  1859d9
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105f0  18655d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110860  185641
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11081c  185131
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105a4  185dc1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105c8  185e91
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110810  1851e9
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c4  183869
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c8  183705
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110628  1839e1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110750  18664d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d8  186691
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11085c  183e45
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110518  186945
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105e0  181f7d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107d8  18368d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1103d0  1869a5
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106c8  186f81
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11056c  186f4d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106b4  185309
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110510  187071
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110550  18710d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104ec  1842a1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d4  187389
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11064c  186241
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110494  184675
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110734  184689
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11047c  1873d1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110740  18757d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110880  1875e9
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110054  181b09
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11005c  181b09
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110048  182f6d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110088  185929
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100c4  185309
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ef0  185b55
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ec0  183c15
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110da0  183c35
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110dc0  183ded
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e28  183d81
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100e0  183d2d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d88  183e29
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d90  186721
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e18  183b95
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110bb4  18740d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110960  1835f9
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1109c0  18205d
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f08  182291
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b1c  183619
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b24  183619
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b5c  182585
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b64  182585
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b6c  182585
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b74  182585
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b7c  182585
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b8c  182585
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b44  1858c1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ac0  184311
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa0  183575
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa8  1835dd
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110a60  186ea1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e20  186f15
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f3c  187259
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d28  1872ad
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  111418  1871a1
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030084  187c80
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030000  46e68
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030004  2778c
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030008  40908
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003000c  13824
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030010  13864
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030014  13868
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030018  138e4
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003001c  138e8
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c80  d0332b00
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c84  47706008
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c88  47702001
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c8c  bf00bf00
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c90  bf004832
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c94  f3efbf00
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c98  bf004812
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c9c  4620bf00
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030080  fb
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  4010001c  0
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	dpd calib & write
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGERROR)	misc_ram_addr=120ebc
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_calib_8800dc_u02.bin firmware, @ = 130000
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_calib_8800dc_u02.bin
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_calib_8800dc_u02.bin  
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	file md5:061790c6181e5974a4c44c515e6d0b69
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	size=40284, dst[0]=130000
+[Wed Mar 11 09:57:47 2026] AICWFDBG(LOGINFO)	Start app: 00130009, 4
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	userconfig file path:aic_userconfig_8800dw.txt 
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	### Load file aic_userconfig_8800dw.txt
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/aic_userconfig_8800dw.txt  
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	file md5:546adac966d71ca97cd9ca247d92180c
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	### Load file done: aic_userconfig_8800dw.txt, size=1138
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: AIC USERCONFIG 2022/0803/1707
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_lvl
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=enable value=1
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_1m_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_2m_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_5m5_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_11m_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_6m_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_9m_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_12m_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_18m_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_24m_2g4 value=18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_36m_2g4 value=18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_48m_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_54m_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs0_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs1_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs2_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs3_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs4_2g4 value=18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs5_2g4 value=18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs6_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs7_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs8_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs9_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs0_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs1_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs2_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs3_2g4 value=20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs4_2g4 value=18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs5_2g4 value=18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs6_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs7_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs8_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs9_2g4 value=16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs10_2g4 value=15
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs11_2g4 value=15
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_loss
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_2g4 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_2g4 value=2
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_5g value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_5g value=5
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_ofst
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_enable value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_1_4 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_5_9 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_10_13 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_36_64 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_100_120 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_122_140 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_142_165 value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: xtal cap
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_enable value=0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap value=24
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap_fine value=31
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	userconfig download complete
+
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	Read FW mem: 00150000
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	cfm: [00150000] = fdf0ffe0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	Start app: 00150000, 5
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	is 5g support = 0, vendor_info = 0x00
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	Firmware Version: zh Aug 08 2022 14:54:51 - gcf79227
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:enable:1
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:enable:1
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:enable      :0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_1_4    :0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_5_9    :0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_10_13  :0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_36_64  :0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_100_120:0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_122_140:0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_142_165:0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_ofst_req:Do not use txpwr_ofst
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_send_rf_calib_req in,chipid=2
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:enable       :0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap     :24
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap_fine:31
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	get macaddr:6c,2b
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	DFS: radar st = 0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	HT supp 1, VHT supp 1, HE supp 1
+[Wed Mar 11 09:57:48 2026] rwnx_reg_notifier Enter
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_radar_set_domain 
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	getRegdomainFromRwnxDB set ccode:00 
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_get_countrycode_channels support channel:1 2 3 4 5 6 7 8 9 10 11 12 13 14 
+[Wed Mar 11 09:57:48 2026] ieee80211 phy1: 
+                           *******************************************************
+                           ** CAUTION: USING PERMISSIVE CUSTOM REGULATORY RULES **
+                           *******************************************************
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_interface_add: wlan%d, 2, 10
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	interface add:6c 1f f7 78 ea 2b
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	aicwf_set_wireless_ext Enter
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	New interface create wlan0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init exit 
+[Wed Mar 11 09:57:48 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add: 10, p2p-dev-wlan0
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add, ifname=p2p-dev-wlan0, wdev=0000000030150cf5, vif_idx=1
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGERROR)	p2p dev addr=6c 1f f7 78 ea 2a
+[Wed Mar 11 09:57:48 2026] AICWFDBG(LOGINFO)	P2P interface started
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	rwnx_send_sm_connect_req drv_vif_index:0 connect to go2ap(5) channel:2437 auth_type:0
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->status_code:0 
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->roamed:0 ind->status_code:0 rwnx_vif->drv_conn_state:2
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind cfg80211_connect_result pass, rwnx_vif->drv_conn_state:3
+[Wed Mar 11 09:57:49 2026] rx eapol
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=1, skb=00000000f6f99b92 sta_idx:0
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=0, hostid=00000000f6f99b92, 0x000000002cabe70e, status=9
+[Wed Mar 11 09:57:49 2026] rx eapol
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=2, skb=000000006fd70a9c sta_idx:0
+[Wed Mar 11 09:57:49 2026] IPv6: ADDRCONF(NETDEV_CHANGE): wlan0: link becomes ready
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=1, hostid=000000006fd70a9c, 0x000000002cabe70e, status=9
+[Wed Mar 11 09:57:49 2026] AICWFDBG(LOGINFO)	reord_init_sta:6c:1f:f7:78:ea:2b
+[Wed Mar 11 09:57:55 2026] pwm-tegra-tachometer 39c0000.tachometer: Tachometer Overflow is detected
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGINFO)	aicwf_usb_rx_complete need to wait for disconnect callback 
+[Wed Mar 11 10:04:14 2026] usb 1-2: USB disconnect, device number 5
+[Wed Mar 11 10:04:14 2026] tegra-xusb 3610000.xhci: WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.
+[Wed Mar 11 10:04:14 2026] tegra-xusb 3610000.xhci: WARN Event TRB for slot 1 ep 2 with no TDs queued?
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect Enter
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Enter
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGINFO)	aicwf_usb_bus_stop
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGINFO)	del_iface: 000000008ce00ce3, 2b
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGINFO)	wlan0 Remove Interface 
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_disconnect drv_vif_index:0 disconnect reason:3 
+[Wed Mar 11 10:04:14 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_close connecting or disconnecting, not finish
+[Wed Mar 11 10:04:19 2026] ------------[ cut here ]------------
+[Wed Mar 11 10:04:19 2026] WARNING: CPU: 0 PID: 11405 at /home/unitree/tmp_oct28/Linux/aic8800_linux_drvier/drivers/aic8800/aic8800_fdrv/rwnx_main.c:1508 rwnx_close+0xac/0x4c8 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026] Modules linked in: fuse xt_conntrack xt_MASQUERADE ip6table_nat ip6table_filter ip6_tables iptable_nat nf_nat nf_conntrack nf_defrag_ipv6 nf_defrag_ipv4 libcrc32c xt_addrtype iptable_filter nfnetlink nvidia_modeset(O) lzo_rle lzo_compress zram overlay ramoops reed_solomon loop aic8800_fdrv(OE) aic_load_fw(OE) cfg80211 snd_soc_tegra210_iqc snd_soc_tegra210_ope snd_soc_tegra186_dspk snd_soc_tegra186_asrc snd_soc_tegra186_arad snd_soc_tegra210_afc snd_soc_tegra210_mvc snd_soc_tegra210_dmic snd_soc_tegra210_amx snd_soc_tegra210_adx snd_soc_tegra210_admaif snd_soc_tegra210_i2s snd_soc_tegra210_mixer snd_soc_tegra210_sfc snd_soc_tegra_pcm aes_ce_blk crypto_simd cryptd aes_ce_cipher snd_soc_tegra210_adsp ghash_ce sha2_ce sha256_arm64 sha1_ce snd_soc_tegra_machine_driver snd_soc_tegra_utils snd_soc_simple_card_utils snd_soc_spdif_tx userspace_alert snd_hda_codec_hdmi nvadsp r8168 tegra_bpmp_thermal tegra210_adma snd_soc_tegra210_ahub r8169 snd_hda_tegra nv_imx219 snd_hda_codec realtek
+[Wed Mar 11 10:04:19 2026]  snd_hda_core spi_tegra114 nvidia(O) binfmt_misc ina3221 pwm_fan nvgpu nvmap ip_tables x_tables [last unloaded: mtd]
+[Wed Mar 11 10:04:19 2026] CPU: 0 PID: 11405 Comm: kworker/0:0 Tainted: G           OE     5.10.104-tegra #1
+[Wed Mar 11 10:04:19 2026] Hardware name: NVIDIA Orin NX Developer Kit (DT)
+[Wed Mar 11 10:04:19 2026] Workqueue: usb_hub_wq hub_event
+[Wed Mar 11 10:04:19 2026] pstate: 60c00009 (nZCv daif +PAN +UAO -TCO BTYPE=--)
+[Wed Mar 11 10:04:19 2026] pc : rwnx_close+0xac/0x4c8 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026] lr : rwnx_close+0x3fc/0x4c8 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026] sp : ffff80002c42b730
+[Wed Mar 11 10:04:19 2026] x29: ffff80002c42b730 x28: ffff7784c634bc00 
+[Wed Mar 11 10:04:19 2026] x27: ffffcf504103afa0 x26: ffff77850f6b8000 
+[Wed Mar 11 10:04:19 2026] x25: ffffcf5041019ef0 x24: ffff7784ff12a000 
+[Wed Mar 11 10:04:19 2026] x23: ffff77851c500940 x22: ffff778606f98820 
+[Wed Mar 11 10:04:19 2026] x21: ffffcf5041046000 x20: ffff77851c500000 
+[Wed Mar 11 10:04:19 2026] x19: 0000000000000000 x18: 0000000000000000 
+[Wed Mar 11 10:04:19 2026] x17: 0000000000000000 x16: ffffcf5081b410b8 
+[Wed Mar 11 10:04:19 2026] x15: 0000000000000000 x14: 0000000000000000 
+[Wed Mar 11 10:04:19 2026] x13: 000000010005098f x12: 000000000006fe51 
+[Wed Mar 11 10:04:19 2026] x11: 0000000800100000 x10: 0000000000000a80 
+[Wed Mar 11 10:04:19 2026] x9 : 00000000fffffffe x8 : 6e697463656e6e6f 
+[Wed Mar 11 10:04:19 2026] x7 : 6373696420726f20 x6 : c0000000ffffefff 
+[Wed Mar 11 10:04:19 2026] x5 : 0000000000000000 x4 : ffff778828377958 
+[Wed Mar 11 10:04:19 2026] x3 : ffff778828386b08 x2 : 0000000000000000 
+[Wed Mar 11 10:04:19 2026] x1 : 0000000000000000 x0 : 0000000000000046 
+[Wed Mar 11 10:04:19 2026] Call trace:
+[Wed Mar 11 10:04:19 2026]  rwnx_close+0xac/0x4c8 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026]  __dev_close_many+0xb4/0x140
+[Wed Mar 11 10:04:19 2026]  dev_close_many+0x8c/0x130
+[Wed Mar 11 10:04:19 2026]  rollback_registered_many+0x120/0x630
+[Wed Mar 11 10:04:19 2026]  unregister_netdevice_queue+0x9c/0x120
+[Wed Mar 11 10:04:19 2026]  rwnx_cfg80211_del_iface+0x158/0x190 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026]  rwnx_cfg80211_deinit+0x114/0x1e8 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026]  rwnx_platform_deinit+0x30/0x58 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026]  aicwf_bus_deinit+0xd0/0x168 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026]  aicwf_usb_disconnect+0x48/0x110 [aic8800_fdrv]
+[Wed Mar 11 10:04:19 2026]  usb_unbind_interface+0x7c/0x280
+[Wed Mar 11 10:04:19 2026]  device_release_driver_internal+0x11c/0x200
+[Wed Mar 11 10:04:19 2026]  device_release_driver+0x2c/0x40
+[Wed Mar 11 10:04:19 2026]  bus_remove_device+0x118/0x130
+[Wed Mar 11 10:04:19 2026]  device_del+0x174/0x3e0
+[Wed Mar 11 10:04:19 2026]  usb_disable_device+0x94/0x160
+[Wed Mar 11 10:04:19 2026]  usb_disconnect+0xc0/0x2c0
+[Wed Mar 11 10:04:19 2026]  hub_event+0x7b4/0x1300
+[Wed Mar 11 10:04:19 2026]  process_one_work+0x1c4/0x4a0
+[Wed Mar 11 10:04:19 2026]  worker_thread+0x54/0x430
+[Wed Mar 11 10:04:19 2026]  kthread+0x148/0x170
+[Wed Mar 11 10:04:19 2026]  ret_from_fork+0x10/0x24
+[Wed Mar 11 10:04:19 2026] ---[ end trace 867f175046262846 ]---
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	rwnx_close wlan0 Enter
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_send_msg1 bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	del_iface: 0000000030150cf5, 2a
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	Exit. P2P interface stopped
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_deinit wiphy_unregister 
+[Wed Mar 11 10:04:19 2026] tcp_ack_deinit 
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit stop to bustx_thread!! 
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	usb bustx thread will to stop
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	usb bustx thread stop
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Enter
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord_deinit_sta
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	stio rx thread
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	usb busrx thread will to stop
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	usb busrx thread stop
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	usb msg busrx thread will to stop
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	usb msg busrx thread stop
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Exit
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Exit 
+[Wed Mar 11 10:04:19 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect exit
+[Wed Mar 11 10:04:19 2026] usb 1-2: new high-speed USB device number 6 using tegra-xusb
+[Wed Mar 11 10:04:19 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=5722, bcdDevice= 2.00
+[Wed Mar 11 10:04:19 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 10:04:19 2026] usb 1-2: Product: Aic MSC
+[Wed Mar 11 10:04:19 2026] usb 1-2: Manufacturer: aicsemi
+[Wed Mar 11 10:04:19 2026] usb 1-2: SerialNumber: 20200203
+[Wed Mar 11 10:04:19 2026] usb-storage 1-2:1.0: USB Mass Storage device detected
+[Wed Mar 11 10:04:19 2026] scsi host0: usb-storage 1-2:1.0
+[Wed Mar 11 10:04:19 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:04:20 2026] scsi 0:0:0:0: Direct-Access     AIC      flash            1.0  PQ: 0 ANSI: 4
+[Wed Mar 11 10:04:20 2026] sd 0:0:0:0: [sda] 7648 512-byte logical blocks: (3.92 MB/3.73 MiB)
+[Wed Mar 11 10:04:20 2026] sd 0:0:0:0: [sda] Write Protect is on
+[Wed Mar 11 10:04:20 2026] sd 0:0:0:0: [sda] Mode Sense: 03 00 80 00
+[Wed Mar 11 10:04:20 2026] sd 0:0:0:0: [sda] No Caching mode page found
+[Wed Mar 11 10:04:20 2026] sd 0:0:0:0: [sda] Assuming drive cache: write through
+[Wed Mar 11 10:04:20 2026]  sda: sda1
+[Wed Mar 11 10:04:20 2026] sd 0:0:0:0: [sda] Attached SCSI removable disk
+[Wed Mar 11 10:04:20 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:04:20 2026] usb 1-2: USB disconnect, device number 6
+[Wed Mar 11 10:04:20 2026] scsi 0:0:0:0: rejecting I/O to dead device
+[Wed Mar 11 10:04:21 2026] tegra-xusb 3610000.xhci: entering ELPG done
+[Wed Mar 11 10:04:21 2026] tegra-xusb 3610000.xhci: Firmware timestamp: 2021-12-01 05:27:10 UTC, Version: 80.03 release
+[Wed Mar 11 10:04:21 2026] usb 1-2: new high-speed USB device number 7 using tegra-xusb
+[Wed Mar 11 10:04:21 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=88de, bcdDevice= 1.00
+[Wed Mar 11 10:04:21 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 10:04:21 2026] usb 1-2: Product: AIC8800DC
+[Wed Mar 11 10:04:21 2026] usb 1-2: Manufacturer: AICSemi
+[Wed Mar 11 10:04:21 2026] usb 1-2: SerialNumber: 20220127
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	aicwf_usb_chipmatch USE AIC8800DW
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	aicwf_parse_usb endpoints = 4
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	Number of interfaces: 1 not supported
+[Wed Mar 11 10:04:21 2026] 8800dw
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	Aic high speed USB device detected
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_rx_urb AICWF_USB_RX_URBS:20 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_tx_urb AICWF_USB_TX_URBS:200 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_msg_rx_urb AICWF_USB_MSG_RX_URBS:100 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the cpu is:3
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	aicwf_bus_init waiting for rx/tx thread init finish 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_busrx_thread set_cpu_ret is:0
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_busrx_thread change cpu to:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the cpu is:0
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the policy of current thread is:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the current pid is:25568
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_bustx_thread set_cpu_ret is:0
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_bustx_thread change cpu to:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the policy of current thread is:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the current pid is:25569
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the policy of current thread is:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the current pid is:25570
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init enter 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init sizeof(struct rwnx_hw):20168 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init: FILTER_TCP_ACK
+[Wed Mar 11 10:04:21 2026] ========== tcp ack debug tcp_ack_init 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	aicwf_prealloc_txq_alloc txq not need to kzalloc 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	usb config read 11d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	chip_id=7, chip_sub_id=1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	set_bbpll_config Crystal not provided by CPU 
+[Wed Mar 11 10:04:21 2026] [0x40500010]=e
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	testmode=0
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_8800dc_u02.bin firmware, @ = 180000
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_8800dc_u02.bin
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_8800dc_u02.bin  
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	file md5:ec8ee791723f4bf9825a6c153a7f0a8f
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	size=31624, dst[0]=7a00edd0
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	wifisetting_cfg_addr=11019c, ldpc_cfg_addr=120980, agc_cfg_addr=120180, txgain_cfg_addr=120000
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_tbl_8800dc_u02.bin 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_tbl_8800dc_u02.bin
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_tbl_8800dc_u02.bin  
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	file md5:c0538d7493963b1f37938e6e87f9e304
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	tbl size = 1008 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	FMACFW_PATCH_TBL_8800DC_U02_DESCRIBE_BASE = 187c00 
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	di Mar 14 2025 12:29:38 - g09cea8d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110888  181219
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108ec  184d59
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110874  181279
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110658  181b09
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107dc  1874dd
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11055c  184135
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110758  187485
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110620  187631
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107e0  181b99
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110838  181dd5
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104f4  182045
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110490  182f6d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110420  1822b1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11048c  1823cd
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110688  182471
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110738  182ead
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110528  1877a1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110554  182fc1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110798  183615
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106dc  183061
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110584  1830fd
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110588  1832d5
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110634  1854e1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110638  1856b9
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110640  1858c1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11086c  18597d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105fc  1859d9
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105f0  18655d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110860  185641
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11081c  185131
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105a4  185dc1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105c8  185e91
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110810  1851e9
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c4  183869
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c8  183705
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110628  1839e1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110750  18664d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d8  186691
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11085c  183e45
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110518  186945
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105e0  181f7d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107d8  18368d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1103d0  1869a5
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106c8  186f81
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11056c  186f4d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106b4  185309
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110510  187071
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110550  18710d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104ec  1842a1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d4  187389
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11064c  186241
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110494  184675
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110734  184689
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11047c  1873d1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110740  18757d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110880  1875e9
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110054  181b09
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  11005c  181b09
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110048  182f6d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110088  185929
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100c4  185309
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ef0  185b55
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ec0  183c15
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110da0  183c35
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110dc0  183ded
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e28  183d81
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100e0  183d2d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d88  183e29
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d90  186721
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e18  183b95
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110bb4  18740d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110960  1835f9
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  1109c0  18205d
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f08  182291
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b1c  183619
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b24  183619
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b5c  182585
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b64  182585
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b6c  182585
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b74  182585
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b7c  182585
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b8c  182585
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b44  1858c1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ac0  184311
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa0  183575
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa8  1835dd
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110a60  186ea1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e20  186f15
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f3c  187259
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d28  1872ad
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  111418  1871a1
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030084  187c80
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030000  46e68
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030004  2778c
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030008  40908
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003000c  13824
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030010  13864
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030014  13868
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030018  138e4
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003001c  138e8
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c80  d0332b00
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c84  47706008
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c88  47702001
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c8c  bf00bf00
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c90  bf004832
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c94  f3efbf00
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c98  bf004812
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c9c  4620bf00
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030080  fb
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	patch_tbl:  4010001c  0
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	dpd calib & write
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGERROR)	misc_ram_addr=120ebc
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_calib_8800dc_u02.bin firmware, @ = 130000
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_calib_8800dc_u02.bin
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_calib_8800dc_u02.bin  
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	file md5:061790c6181e5974a4c44c515e6d0b69
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	size=40284, dst[0]=130000
+[Wed Mar 11 10:04:21 2026] AICWFDBG(LOGINFO)	Start app: 00130009, 4
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	userconfig file path:aic_userconfig_8800dw.txt 
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	### Load file aic_userconfig_8800dw.txt
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/aic_userconfig_8800dw.txt  
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	file md5:546adac966d71ca97cd9ca247d92180c
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	### Load file done: aic_userconfig_8800dw.txt, size=1138
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: AIC USERCONFIG 2022/0803/1707
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_lvl
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=enable value=1
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_1m_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_2m_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_5m5_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_11m_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_6m_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_9m_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_12m_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_18m_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_24m_2g4 value=18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_36m_2g4 value=18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_48m_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_54m_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs0_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs1_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs2_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs3_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs4_2g4 value=18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs5_2g4 value=18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs6_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs7_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs8_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs9_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs0_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs1_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs2_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs3_2g4 value=20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs4_2g4 value=18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs5_2g4 value=18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs6_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs7_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs8_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs9_2g4 value=16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs10_2g4 value=15
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs11_2g4 value=15
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_loss
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_2g4 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_2g4 value=2
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_5g value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_5g value=5
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_ofst
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_enable value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_1_4 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_5_9 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_10_13 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_36_64 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_100_120 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_122_140 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_142_165 value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: xtal cap
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_enable value=0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap value=24
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap_fine value=31
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	userconfig download complete
+
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	Read FW mem: 00150000
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	cfm: [00150000] = 1ac01dd0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	Start app: 00150000, 5
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	is 5g support = 0, vendor_info = 0x00
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	Firmware Version: zh Aug 08 2022 14:54:51 - gcf79227
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:enable:1
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:enable:1
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:enable      :0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_1_4    :0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_5_9    :0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_10_13  :0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_36_64  :0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_100_120:0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_122_140:0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_142_165:0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_ofst_req:Do not use txpwr_ofst
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_send_rf_calib_req in,chipid=2
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:enable       :0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap     :24
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap_fine:31
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	get macaddr:6c,2b
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	DFS: radar st = 0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	HT supp 1, VHT supp 1, HE supp 1
+[Wed Mar 11 10:04:22 2026] rwnx_reg_notifier Enter
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_radar_set_domain 
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	set_region 1 
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	set_region 1 
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	getRegdomainFromRwnxDB set ccode:00 
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_get_countrycode_channels support channel:1 2 3 4 5 6 7 8 9 10 11 12 13 14 
+[Wed Mar 11 10:04:22 2026] ieee80211 phy2: 
+                           *******************************************************
+                           ** CAUTION: USING PERMISSIVE CUSTOM REGULATORY RULES **
+                           *******************************************************
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_interface_add: wlan%d, 2, 10
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	interface add:6c 1f f7 78 ea 2b
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	aicwf_set_wireless_ext Enter
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	New interface create wlan0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init exit 
+[Wed Mar 11 10:04:22 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add: 10, p2p-dev-wlan0
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add, ifname=p2p-dev-wlan0, wdev=00000000a67757e1, vif_idx=1
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGERROR)	p2p dev addr=6c 1f f7 78 ea 2a
+[Wed Mar 11 10:04:22 2026] AICWFDBG(LOGINFO)	P2P interface started
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_send_sm_connect_req drv_vif_index:0 connect to go2ap(5) channel:2437 auth_type:0
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->status_code:1 
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->roamed:0 ind->status_code:1 rwnx_vif->drv_conn_state:0
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind cfg80211_connect_result pass, rwnx_vif->drv_conn_state:0
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_send_sm_connect_req drv_vif_index:0 connect to go2ap(5) channel:2437 auth_type:0
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->status_code:0 
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->roamed:0 ind->status_code:0 rwnx_vif->drv_conn_state:2
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind cfg80211_connect_result pass, rwnx_vif->drv_conn_state:3
+[Wed Mar 11 10:04:23 2026] rx eapol
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=1, skb=000000002618a09f sta_idx:1
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=0, hostid=000000002618a09f, 0x00000000a865a93d, status=9
+[Wed Mar 11 10:04:23 2026] rx eapol
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=2, skb=00000000bb9d22ec sta_idx:1
+[Wed Mar 11 10:04:23 2026] IPv6: ADDRCONF(NETDEV_CHANGE): wlan0: link becomes ready
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=1, hostid=00000000bb9d22ec, 0x00000000a865a93d, status=9
+[Wed Mar 11 10:04:23 2026] AICWFDBG(LOGINFO)	reord_init_sta:6c:1f:f7:78:ea:2b
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_disconnect drv_vif_index:0 disconnect reason:3 
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_disconnect_ind reason code:0 
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_unlink_bss(): cfg80211_unlink go2ap!!
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	deinit:macaddr:6c,1f,f7,78,ea,2b
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord_mac:6c,1f,f7,78,ea,2b
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord_deinit_sta
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:17:41 2026] r8169 0008:01:00.0 eth0: Link is Down
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	rwnx_close wlan0 Enter
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	state: 1 1 
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	HT supp 1, VHT supp 1, HE supp 1
+[Wed Mar 11 10:17:41 2026] PM: suspend entry (deep)
+[Wed Mar 11 10:17:41 2026] Filesystems sync: 0.002 seconds
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	Exit. P2P interface stopped
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	del_iface: 00000000a67757e1, 2a
+[Wed Mar 11 10:17:41 2026] Freezing user space processes ... (elapsed 0.003 seconds) done.
+[Wed Mar 11 10:17:41 2026] OOM killer disabled.
+[Wed Mar 11 10:17:41 2026] Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[Wed Mar 11 10:17:41 2026] printk: Suspending console(s) (use no_console_suspend to debug)
+[Wed Mar 11 10:17:41 2026] AICWFDBG(LOGINFO)	aicwf_usb_suspend enter
+[Wed Mar 11 10:17:42 2026] AICWFDBG(LOGINFO)	aicwf_usb_bus_stop
+[Wed Mar 11 10:17:42 2026] AICWFDBG(LOGINFO)	aicwf_usb_rx_complete need to wait for disconnect callback 
+[Wed Mar 11 10:17:42 2026] tegra-xusb 3610000.xhci: entering ELPG done
+[Wed Mar 11 10:17:42 2026] CPU:0, Error: dce-fabric@0xde00000, irq=28
+[Wed Mar 11 10:17:42 2026] **************************************
+[Wed Mar 11 10:17:42 2026] CPU:0, Error:dce-fabric, Errmon:4
+[Wed Mar 11 10:17:42 2026] 	  Error Code		: SLAVE_ERR
+
+[Wed Mar 11 10:17:42 2026] 	  Error Code		: SLAVE_ERR
+[Wed Mar 11 10:17:42 2026] 	  MASTER_ID		: DCE
+[Wed Mar 11 10:17:42 2026] 	  Address		: 0xdc9ed80
+[Wed Mar 11 10:17:42 2026] 	  Cache			: 0x3 -- Bufferable Modifiable 
+[Wed Mar 11 10:17:42 2026] 	  Protection		: 0x2 -- Unprivileged, Non-Secure, Data Access
+[Wed Mar 11 10:17:42 2026] 	  Access_Type		: Read
+[Wed Mar 11 10:17:42 2026] 	  Access_ID		: 0x0
+[Wed Mar 11 10:17:42 2026] 	  Fabric		: dce-fabric
+[Wed Mar 11 10:17:42 2026] 	  Slave_Id		: 0x5
+[Wed Mar 11 10:17:42 2026] 	  Burst_length		: 0x7
+[Wed Mar 11 10:17:42 2026] 	  Burst_type		: 0x1
+[Wed Mar 11 10:17:42 2026] 	  Beat_size		: 0x3
+[Wed Mar 11 10:17:42 2026] 	  VQC			: 0x0
+[Wed Mar 11 10:17:42 2026] 	  GRPSEC		: 0x3f
+[Wed Mar 11 10:17:42 2026] 	  FALCONSEC		: 0x0
+[Wed Mar 11 10:17:42 2026] 	**************************************
+[Wed Mar 11 10:17:42 2026] dce: dce_handle_irq_status:247  DCE can be safely powered-off now
+[Wed Mar 11 10:17:42 2026] host1x 13e40000.host1x: suspended
+[Wed Mar 11 10:17:42 2026] tegra194-pcie 140a0000.pcie: Link didn't transition to L2 state
+[Wed Mar 11 10:17:42 2026] tegra194-pcie 140a0000.pcie: Link didn't go to detect state
+[Wed Mar 11 10:17:42 2026] Disabling non-boot CPUs ...
+[Wed Mar 11 10:17:42 2026] CPU1: shutdown
+[Wed Mar 11 10:17:42 2026] psci: CPU1 killed (polled 0 ms)
+[Wed Mar 11 10:17:42 2026] CPU2: shutdown
+[Wed Mar 11 10:17:42 2026] psci: CPU2 killed (polled 4 ms)
+[Wed Mar 11 10:17:42 2026] CPU3: shutdown
+[Wed Mar 11 10:17:42 2026] psci: CPU3 killed (polled 0 ms)
+[Wed Mar 11 10:17:42 2026] Enabling non-boot CPUs ...
+[Wed Mar 11 10:17:42 2026] Detected PIPT I-cache on CPU1
+[Wed Mar 11 10:17:42 2026] GICv3: CPU1: found redistributor 100 region 0:0x000000000f460000
+[Wed Mar 11 10:17:42 2026] CPU1: Booted secondary processor 0x0000000100 [0x410fd421]
+[Wed Mar 11 10:17:42 2026] CPU1 is up
+[Wed Mar 11 10:17:43 2026] Detected PIPT I-cache on CPU2
+[Wed Mar 11 10:17:43 2026] GICv3: CPU2: found redistributor 200 region 0:0x000000000f480000
+[Wed Mar 11 10:17:43 2026] CPU2: Booted secondary processor 0x0000000200 [0x410fd421]
+[Wed Mar 11 10:17:43 2026] CPU2 is up
+[Wed Mar 11 10:17:43 2026] Detected PIPT I-cache on CPU3
+[Wed Mar 11 10:17:43 2026] GICv3: CPU3: found redistributor 300 region 0:0x000000000f4a0000
+[Wed Mar 11 10:17:43 2026] CPU3: Booted secondary processor 0x0000000300 [0x410fd421]
+[Wed Mar 11 10:17:43 2026] CPU3 is up
+[Wed Mar 11 10:17:43 2026] tegra194-pcie 14160000.pcie: Link up
+[Wed Mar 11 10:17:43 2026] tegra194-pcie 140a0000.pcie: Link up
+[Wed Mar 11 10:17:43 2026] host1x 13e40000.host1x: resuming
+[Wed Mar 11 10:17:43 2026] tegra-pmc: Wake[32:0]  status=0x0
+[Wed Mar 11 10:17:43 2026] tegra-pmc: Wake[64:32]  status=0x0
+[Wed Mar 11 10:17:43 2026] tegra-pmc: Wake[96:64]  status=0x10000
+[Wed Mar 11 10:17:43 2026] tegra-pmc: Resume caused by WAKE80, irq 242
+[Wed Mar 11 10:17:43 2026] tegra_se_sc7_check_error:235 SE HW is not idle, timeout
+[Wed Mar 11 10:17:43 2026] PM: dpm_run_callback(): platform_pm_resume+0x0/0x80 returns -110
+[Wed Mar 11 10:17:43 2026] PM: Device 3ae0000.nvrng failed to resume: error -110
+[Wed Mar 11 10:17:43 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x5]
+[Wed Mar 11 10:17:43 2026] dce: dce_admin_ipc_handle_signal:90   Spurious signal on channel: [0]. Ignored...
+[Wed Mar 11 10:17:43 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x5]
+[Wed Mar 11 10:17:43 2026] dce: dce_admin_send_cmd_ver:424  version : [0x2] err : [0x0]
+[Wed Mar 11 10:17:43 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x1]
+[Wed Mar 11 10:17:43 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x1]
+[Wed Mar 11 10:17:43 2026] dce: dce_admin_setup_clients_ipc:553  Channel Reset Complete for Type [1] ...
+[Wed Mar 11 10:17:43 2026] dce: dce_admin_setup_clients_ipc:529  Get queue info failed for [2]
+[Wed Mar 11 10:17:43 2026] dce: dce_admin_ipc_handle_signal:90   Spurious signal on channel: [1]. Ignored...
+[Wed Mar 11 10:17:43 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x2]
+[Wed Mar 11 10:17:43 2026] dce: dce_admin_setup_clients_ipc:553  Channel Reset Complete for Type [3] ...
+[Wed Mar 11 10:17:43 2026] dce: dce_admin_ipc_handle_signal:90   Spurious signal on channel: [3]. Ignored...
+[Wed Mar 11 10:17:43 2026] dce: dce_start_boot_flow:173  DCE_BOOT_DONE
+[Wed Mar 11 10:17:43 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 10:17:43 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 10:17:43 2026] nvme nvme0: 8/0/0 default/read/poll queues
+[Wed Mar 11 10:17:43 2026] tegra-xusb 3610000.xhci: Firmware timestamp: 2021-12-01 05:27:10 UTC, Version: 80.03 release
+[Wed Mar 11 10:17:43 2026] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x2080017e result 0x56:
+[Wed Mar 11 10:17:43 2026] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x731341 result 0xffff:
+[Wed Mar 11 10:17:45 2026] usb 1-2: reset high-speed USB device number 7 using tegra-xusb
+[Wed Mar 11 10:17:45 2026] usb 1-2: device firmware changed
+[Wed Mar 11 10:17:45 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:17:45 2026] OOM killer enabled.
+[Wed Mar 11 10:17:45 2026] Restarting tasks ... 
+[Wed Mar 11 10:17:45 2026] usb 1-2: USB disconnect, device number 7
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect Enter
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Enter
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_usb_bus_stop
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	del_iface: 000000006f7dbae0, 2b
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	wlan0 Remove Interface 
+[Wed Mar 11 10:17:45 2026] done.
+[Wed Mar 11 10:17:45 2026] PM: suspend exit
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_deinit wiphy_unregister 
+[Wed Mar 11 10:17:45 2026] tcp_ack_deinit 
+[Wed Mar 11 10:17:45 2026] Generic FE-GE Realtek PHY r8169-8-100:00: attached PHY driver [Generic FE-GE Realtek PHY] (mii_bus:phy_addr=r8169-8-100:00, irq=IGNORE)
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit stop to bustx_thread!! 
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	usb bustx thread will to stop
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	usb bustx thread stop
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Enter
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	stio rx thread
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	usb busrx thread will to stop
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	usb busrx thread stop
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	usb msg busrx thread will to stop
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	usb msg busrx thread stop
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Exit
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Exit 
+[Wed Mar 11 10:17:45 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect exit
+[Wed Mar 11 10:17:45 2026] usb 1-2: new high-speed USB device number 8 using tegra-xusb
+[Wed Mar 11 10:17:45 2026] r8169 0008:01:00.0 eth0: Link is Down
+[Wed Mar 11 10:17:45 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=5722, bcdDevice= 2.00
+[Wed Mar 11 10:17:45 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 10:17:45 2026] usb 1-2: Product: Aic MSC
+[Wed Mar 11 10:17:45 2026] usb 1-2: Manufacturer: aicsemi
+[Wed Mar 11 10:17:45 2026] usb 1-2: SerialNumber: 20200203
+[Wed Mar 11 10:17:45 2026] usb-storage 1-2:1.0: USB Mass Storage device detected
+[Wed Mar 11 10:17:45 2026] scsi host0: usb-storage 1-2:1.0
+[Wed Mar 11 10:17:45 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:17:46 2026] scsi 0:0:0:0: Direct-Access     AIC      flash            1.0  PQ: 0 ANSI: 4
+[Wed Mar 11 10:17:46 2026] sd 0:0:0:0: [sda] 7648 512-byte logical blocks: (3.92 MB/3.73 MiB)
+[Wed Mar 11 10:17:46 2026] sd 0:0:0:0: [sda] Write Protect is on
+[Wed Mar 11 10:17:46 2026] sd 0:0:0:0: [sda] Mode Sense: 03 00 80 00
+[Wed Mar 11 10:17:46 2026] sd 0:0:0:0: [sda] No Caching mode page found
+[Wed Mar 11 10:17:46 2026] sd 0:0:0:0: [sda] Assuming drive cache: write through
+[Wed Mar 11 10:17:46 2026]  sda: sda1
+[Wed Mar 11 10:17:46 2026] sd 0:0:0:0: [sda] Attached SCSI removable disk
+[Wed Mar 11 10:17:46 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:17:46 2026] usb 1-2: USB disconnect, device number 8
+[Wed Mar 11 10:17:46 2026] scsi 0:0:0:0: rejecting I/O to dead device
+[Wed Mar 11 10:17:47 2026] tegra-xusb 3610000.xhci: entering ELPG done
+[Wed Mar 11 10:17:47 2026] tegra-xusb 3610000.xhci: Firmware timestamp: 2021-12-01 05:27:10 UTC, Version: 80.03 release
+[Wed Mar 11 10:17:47 2026] usb 1-2: new high-speed USB device number 9 using tegra-xusb
+[Wed Mar 11 10:17:47 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=88de, bcdDevice= 1.00
+[Wed Mar 11 10:17:47 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 10:17:47 2026] usb 1-2: Product: AIC8800DC
+[Wed Mar 11 10:17:47 2026] usb 1-2: Manufacturer: AICSemi
+[Wed Mar 11 10:17:47 2026] usb 1-2: SerialNumber: 20220127
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_chipmatch USE AIC8800DW
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	aicwf_parse_usb endpoints = 4
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	Number of interfaces: 1 not supported
+[Wed Mar 11 10:17:47 2026] 8800dw
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	Aic high speed USB device detected
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_rx_urb AICWF_USB_RX_URBS:20 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_tx_urb AICWF_USB_TX_URBS:200 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_msg_rx_urb AICWF_USB_MSG_RX_URBS:100 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the cpu is:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread set_cpu_ret is:0
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread change cpu to:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the policy of current thread is:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	aicwf_bus_init waiting for rx/tx thread init finish 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the current pid is:35163
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the cpu is:3
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread set_cpu_ret is:0
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread change cpu to:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the policy of current thread is:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the current pid is:35164
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the policy of current thread is:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the current pid is:35165
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init enter 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init sizeof(struct rwnx_hw):20168 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init: FILTER_TCP_ACK
+[Wed Mar 11 10:17:47 2026] ========== tcp ack debug tcp_ack_init 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	aicwf_prealloc_txq_alloc txq not need to kzalloc 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	usb config read 11d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	chip_id=7, chip_sub_id=1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	set_bbpll_config Crystal not provided by CPU 
+[Wed Mar 11 10:17:47 2026] [0x40500010]=e
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	testmode=0
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_8800dc_u02.bin firmware, @ = 180000
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_8800dc_u02.bin
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_8800dc_u02.bin  
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	file md5:ec8ee791723f4bf9825a6c153a7f0a8f
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	size=31624, dst[0]=7a00edd0
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	wifisetting_cfg_addr=11019c, ldpc_cfg_addr=120980, agc_cfg_addr=120180, txgain_cfg_addr=120000
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_tbl_8800dc_u02.bin 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_tbl_8800dc_u02.bin
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_tbl_8800dc_u02.bin  
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	file md5:c0538d7493963b1f37938e6e87f9e304
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	tbl size = 1008 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	FMACFW_PATCH_TBL_8800DC_U02_DESCRIBE_BASE = 187c00 
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	di Mar 14 2025 12:29:38 - g09cea8d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110888  181219
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108ec  184d59
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110874  181279
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110658  181b09
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107dc  1874dd
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11055c  184135
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110758  187485
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110620  187631
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107e0  181b99
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110838  181dd5
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104f4  182045
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110490  182f6d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110420  1822b1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11048c  1823cd
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110688  182471
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110738  182ead
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110528  1877a1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110554  182fc1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110798  183615
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106dc  183061
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110584  1830fd
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110588  1832d5
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110634  1854e1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110638  1856b9
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110640  1858c1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11086c  18597d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105fc  1859d9
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105f0  18655d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110860  185641
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11081c  185131
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105a4  185dc1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105c8  185e91
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110810  1851e9
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c4  183869
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c8  183705
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110628  1839e1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110750  18664d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d8  186691
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11085c  183e45
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110518  186945
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105e0  181f7d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107d8  18368d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1103d0  1869a5
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106c8  186f81
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11056c  186f4d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106b4  185309
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110510  187071
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110550  18710d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104ec  1842a1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d4  187389
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11064c  186241
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110494  184675
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110734  184689
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11047c  1873d1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110740  18757d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110880  1875e9
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110054  181b09
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  11005c  181b09
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110048  182f6d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110088  185929
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100c4  185309
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ef0  185b55
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ec0  183c15
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110da0  183c35
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110dc0  183ded
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e28  183d81
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100e0  183d2d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d88  183e29
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d90  186721
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e18  183b95
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110bb4  18740d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110960  1835f9
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  1109c0  18205d
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f08  182291
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b1c  183619
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b24  183619
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b5c  182585
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b64  182585
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b6c  182585
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b74  182585
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b7c  182585
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b8c  182585
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b44  1858c1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ac0  184311
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa0  183575
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa8  1835dd
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110a60  186ea1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e20  186f15
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f3c  187259
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d28  1872ad
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  111418  1871a1
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030084  187c80
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030000  46e68
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030004  2778c
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030008  40908
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003000c  13824
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030010  13864
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030014  13868
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030018  138e4
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003001c  138e8
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c80  d0332b00
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c84  47706008
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c88  47702001
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c8c  bf00bf00
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c90  bf004832
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c94  f3efbf00
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c98  bf004812
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c9c  4620bf00
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030080  fb
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	patch_tbl:  4010001c  0
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	dpd calib & write
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGERROR)	misc_ram_addr=120ebc
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_calib_8800dc_u02.bin firmware, @ = 130000
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_calib_8800dc_u02.bin
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_calib_8800dc_u02.bin  
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	file md5:061790c6181e5974a4c44c515e6d0b69
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	size=40284, dst[0]=130000
+[Wed Mar 11 10:17:47 2026] AICWFDBG(LOGINFO)	Start app: 00130009, 4
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	userconfig file path:aic_userconfig_8800dw.txt 
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	### Load file aic_userconfig_8800dw.txt
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/aic_userconfig_8800dw.txt  
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	file md5:546adac966d71ca97cd9ca247d92180c
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	### Load file done: aic_userconfig_8800dw.txt, size=1138
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: AIC USERCONFIG 2022/0803/1707
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_lvl
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=enable value=1
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_1m_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_2m_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_5m5_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_11m_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_6m_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_9m_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_12m_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_18m_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_24m_2g4 value=18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_36m_2g4 value=18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_48m_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_54m_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs0_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs1_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs2_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs3_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs4_2g4 value=18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs5_2g4 value=18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs6_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs7_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs8_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs9_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs0_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs1_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs2_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs3_2g4 value=20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs4_2g4 value=18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs5_2g4 value=18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs6_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs7_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs8_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs9_2g4 value=16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs10_2g4 value=15
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs11_2g4 value=15
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_loss
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_2g4 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_2g4 value=2
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_5g value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_5g value=5
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_ofst
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_enable value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_1_4 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_5_9 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_10_13 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_36_64 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_100_120 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_122_140 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_142_165 value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: xtal cap
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_enable value=0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap value=24
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap_fine value=31
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	userconfig download complete
+
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	Read FW mem: 00150000
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	cfm: [00150000] = e451e8a1
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	Start app: 00150000, 5
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	is 5g support = 0, vendor_info = 0x00
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	Firmware Version: zh Aug 08 2022 14:54:51 - gcf79227
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:enable:1
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:enable:1
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:enable      :0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_1_4    :0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_5_9    :0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_10_13  :0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_36_64  :0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_100_120:0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_122_140:0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_142_165:0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_ofst_req:Do not use txpwr_ofst
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_send_rf_calib_req in,chipid=2
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:enable       :0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap     :24
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap_fine:31
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	get macaddr:6c,2b
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	DFS: radar st = 0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	HT supp 1, VHT supp 1, HE supp 1
+[Wed Mar 11 10:17:48 2026] rwnx_reg_notifier Enter
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_radar_set_domain 
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	getRegdomainFromRwnxDB set ccode:00 
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_get_countrycode_channels support channel:1 2 3 4 5 6 7 8 9 10 11 12 13 14 
+[Wed Mar 11 10:17:48 2026] ieee80211 phy3: 
+                           *******************************************************
+                           ** CAUTION: USING PERMISSIVE CUSTOM REGULATORY RULES **
+                           *******************************************************
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_interface_add: wlan%d, 2, 10
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	interface add:6c 1f f7 78 ea 2b
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	aicwf_set_wireless_ext Enter
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	New interface create wlan0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init exit 
+[Wed Mar 11 10:17:48 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add: 10, p2p-dev-wlan0
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add, ifname=p2p-dev-wlan0, wdev=000000002d871da3, vif_idx=1
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGERROR)	p2p dev addr=6c 1f f7 78 ea 2a
+[Wed Mar 11 10:17:48 2026] AICWFDBG(LOGINFO)	P2P interface started
+[Wed Mar 11 10:17:48 2026] r8169 0008:01:00.0 eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[Wed Mar 11 10:17:48 2026] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	rwnx_send_sm_connect_req drv_vif_index:0 connect to go2ap(5) channel:2437 auth_type:0
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->status_code:0 
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->roamed:0 ind->status_code:0 rwnx_vif->drv_conn_state:2
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind cfg80211_connect_result pass, rwnx_vif->drv_conn_state:3
+[Wed Mar 11 10:17:49 2026] rx eapol
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=1, skb=00000000ee2e7022 sta_idx:0
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=0, hostid=00000000ee2e7022, 0x0000000017e7edd0, status=9
+[Wed Mar 11 10:17:49 2026] rx eapol
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=2, skb=0000000061b4bcb3 sta_idx:0
+[Wed Mar 11 10:17:49 2026] IPv6: ADDRCONF(NETDEV_CHANGE): wlan0: link becomes ready
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=1, hostid=0000000061b4bcb3, 0x0000000017e7edd0, status=9
+[Wed Mar 11 10:17:49 2026] AICWFDBG(LOGINFO)	reord_init_sta:6c:1f:f7:78:ea:2b
+[Wed Mar 11 10:18:01 2026] pwm-tegra-tachometer 39c0000.tachometer: Tachometer Overflow is detected
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_disconnect drv_vif_index:0 disconnect reason:3 
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_disconnect_ind reason code:0 
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_unlink_bss(): cfg80211_unlink go2ap!!
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	deinit:macaddr:6c,1f,f7,78,ea,2b
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord_mac:6c,1f,f7,78,ea,2b
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord_deinit_sta
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	reord dinit in_irq():0 in_atomic:1 in_softirq:512
+[Wed Mar 11 10:37:45 2026] r8169 0008:01:00.0 eth0: Link is Down
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	rwnx_close wlan0 Enter
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	state: 1 1 
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	HT supp 1, VHT supp 1, HE supp 1
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	Exit. P2P interface stopped
+[Wed Mar 11 10:37:45 2026] AICWFDBG(LOGINFO)	del_iface: 000000002d871da3, 2a
+[Wed Mar 11 10:37:45 2026] PM: suspend entry (deep)
+[Wed Mar 11 10:37:45 2026] Filesystems sync: 0.002 seconds
+[Wed Mar 11 10:37:45 2026] Freezing user space processes ... (elapsed 0.016 seconds) done.
+[Wed Mar 11 10:37:45 2026] OOM killer disabled.
+[Wed Mar 11 10:37:45 2026] Freezing remaining freezable tasks ... (elapsed 0.001 seconds) done.
+[Wed Mar 11 10:37:46 2026] printk: Suspending console(s) (use no_console_suspend to debug)
+[Wed Mar 11 10:37:46 2026] AICWFDBG(LOGINFO)	aicwf_usb_suspend enter
+[Wed Mar 11 10:37:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_bus_stop
+[Wed Mar 11 10:37:47 2026] AICWFDBG(LOGINFO)	aicwf_usb_rx_complete need to wait for disconnect callback 
+[Wed Mar 11 10:37:47 2026] tegra-xusb 3610000.xhci: entering ELPG done
+[Wed Mar 11 10:37:47 2026] CPU:0, Error: dce-fabric@0xde00000, irq=28
+[Wed Mar 11 10:37:47 2026] **************************************
+[Wed Mar 11 10:37:47 2026] CPU:0, Error:dce-fabric, Errmon:4
+[Wed Mar 11 10:37:47 2026] 	  Error Code		: SLAVE_ERR
+[Wed Mar 11 10:37:47 2026] 	  Overflow		: Multiple SLAVE_ERR
+
+[Wed Mar 11 10:37:47 2026] 	  Error Code		: SLAVE_ERR
+[Wed Mar 11 10:37:47 2026] 	  MASTER_ID		: DCE
+[Wed Mar 11 10:37:47 2026] 	  Address		: 0xdc9ed80
+[Wed Mar 11 10:37:47 2026] 	  Cache			: 0x3 -- Bufferable Modifiable 
+[Wed Mar 11 10:37:47 2026] 	  Protection		: 0x2 -- Unprivileged, Non-Secure, Data Access
+[Wed Mar 11 10:37:47 2026] 	  Access_Type		: Read
+[Wed Mar 11 10:37:47 2026] 	  Access_ID		: 0x0
+[Wed Mar 11 10:37:47 2026] 	  Fabric		: dce-fabric
+[Wed Mar 11 10:37:47 2026] 	  Slave_Id		: 0x5
+[Wed Mar 11 10:37:47 2026] 	  Burst_length		: 0x7
+[Wed Mar 11 10:37:47 2026] 	  Burst_type		: 0x1
+[Wed Mar 11 10:37:47 2026] 	  Beat_size		: 0x3
+[Wed Mar 11 10:37:47 2026] 	  VQC			: 0x0
+[Wed Mar 11 10:37:47 2026] 	  GRPSEC		: 0x3f
+[Wed Mar 11 10:37:47 2026] 	  FALCONSEC		: 0x0
+[Wed Mar 11 10:37:47 2026] 	**************************************
+[Wed Mar 11 10:37:47 2026] dce: dce_handle_irq_status:247  DCE can be safely powered-off now
+[Wed Mar 11 10:37:47 2026] host1x 13e40000.host1x: suspended
+[Wed Mar 11 10:37:47 2026] tegra194-pcie 140a0000.pcie: Link didn't transition to L2 state
+[Wed Mar 11 10:37:47 2026] tegra194-pcie 140a0000.pcie: Link didn't go to detect state
+[Wed Mar 11 10:37:47 2026] Disabling non-boot CPUs ...
+[Wed Mar 11 10:37:47 2026] CPU1: shutdown
+[Wed Mar 11 10:37:47 2026] psci: CPU1 killed (polled 0 ms)
+[Wed Mar 11 10:37:47 2026] CPU2: shutdown
+[Wed Mar 11 10:37:47 2026] psci: CPU2 killed (polled 4 ms)
+[Wed Mar 11 10:37:47 2026] CPU3: shutdown
+[Wed Mar 11 10:37:47 2026] psci: CPU3 killed (polled 0 ms)
+[Wed Mar 11 10:37:47 2026] Enabling non-boot CPUs ...
+[Wed Mar 11 10:37:47 2026] Detected PIPT I-cache on CPU1
+[Wed Mar 11 10:37:47 2026] GICv3: CPU1: found redistributor 100 region 0:0x000000000f460000
+[Wed Mar 11 10:37:47 2026] CPU1: Booted secondary processor 0x0000000100 [0x410fd421]
+[Wed Mar 11 10:37:47 2026] CPU1 is up
+[Wed Mar 11 10:37:47 2026] Detected PIPT I-cache on CPU2
+[Wed Mar 11 10:37:47 2026] GICv3: CPU2: found redistributor 200 region 0:0x000000000f480000
+[Wed Mar 11 10:37:47 2026] CPU2: Booted secondary processor 0x0000000200 [0x410fd421]
+[Wed Mar 11 10:37:47 2026] CPU2 is up
+[Wed Mar 11 10:37:47 2026] Detected PIPT I-cache on CPU3
+[Wed Mar 11 10:37:47 2026] GICv3: CPU3: found redistributor 300 region 0:0x000000000f4a0000
+[Wed Mar 11 10:37:47 2026] CPU3: Booted secondary processor 0x0000000300 [0x410fd421]
+[Wed Mar 11 10:37:47 2026] CPU3 is up
+[Wed Mar 11 10:37:47 2026] tegra194-pcie 14160000.pcie: Link up
+[Wed Mar 11 10:37:47 2026] tegra194-pcie 140a0000.pcie: Link up
+[Wed Mar 11 10:37:47 2026] host1x 13e40000.host1x: resuming
+[Wed Mar 11 10:37:47 2026] tegra-pmc: Wake[32:0]  status=0x0
+[Wed Mar 11 10:37:47 2026] tegra-pmc: Wake[64:32]  status=0x0
+[Wed Mar 11 10:37:47 2026] tegra-pmc: Wake[96:64]  status=0x10000
+[Wed Mar 11 10:37:47 2026] tegra-pmc: Resume caused by WAKE80, irq 242
+[Wed Mar 11 10:37:47 2026] tegra_se_sc7_check_error:235 SE HW is not idle, timeout
+[Wed Mar 11 10:37:47 2026] PM: dpm_run_callback(): platform_pm_resume+0x0/0x80 returns -110
+[Wed Mar 11 10:37:47 2026] PM: Device 3ae0000.nvrng failed to resume: error -110
+[Wed Mar 11 10:37:48 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x5]
+[Wed Mar 11 10:37:48 2026] dce: dce_admin_ipc_handle_signal:90   Spurious signal on channel: [0]. Ignored...
+[Wed Mar 11 10:37:48 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x5]
+[Wed Mar 11 10:37:48 2026] dce: dce_admin_send_cmd_ver:424  version : [0x2] err : [0x0]
+[Wed Mar 11 10:37:48 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x1]
+[Wed Mar 11 10:37:48 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x1]
+[Wed Mar 11 10:37:48 2026] dce: dce_admin_setup_clients_ipc:553  Channel Reset Complete for Type [1] ...
+[Wed Mar 11 10:37:48 2026] dce: dce_admin_setup_clients_ipc:529  Get queue info failed for [2]
+[Wed Mar 11 10:37:48 2026] dce: dce_admin_ipc_handle_signal:90   Spurious signal on channel: [1]. Ignored...
+[Wed Mar 11 10:37:48 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x2]
+[Wed Mar 11 10:37:48 2026] dce: dce_mailbox_set_full_interrupt:165  Intr bit set multiple times for MB : [0x2]
+[Wed Mar 11 10:37:48 2026] dce: dce_admin_setup_clients_ipc:553  Channel Reset Complete for Type [3] ...
+[Wed Mar 11 10:37:48 2026] dce: dce_admin_ipc_handle_signal:90   Spurious signal on channel: [3]. Ignored...
+[Wed Mar 11 10:37:48 2026] dce: dce_start_boot_flow:173  DCE_BOOT_DONE
+[Wed Mar 11 10:37:48 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 10:37:48 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 10:37:48 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 10:37:48 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 10:37:48 2026] tegra-hsp b950000.tegra-hsp: Try increasing MBOX_TX_QUEUE_LEN
+[Wed Mar 11 10:37:48 2026] nvme nvme0: 8/0/0 default/read/poll queues
+[Wed Mar 11 10:37:48 2026] tegra-xusb 3610000.xhci: Firmware timestamp: 2021-12-01 05:27:10 UTC, Version: 80.03 release
+[Wed Mar 11 10:37:48 2026] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x2080017e result 0x56:
+[Wed Mar 11 10:37:48 2026] NVRM rpcRmApiControl_dce: NVRM_RPC_DCE: Failed RM ctrl call cmd:0x731341 result 0xffff:
+[Wed Mar 11 10:37:48 2026] usb 1-2: reset high-speed USB device number 9 using tegra-xusb
+[Wed Mar 11 10:37:48 2026] usb 1-2: device firmware changed
+[Wed Mar 11 10:37:48 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:37:48 2026] OOM killer enabled.
+[Wed Mar 11 10:37:48 2026] Restarting tasks ... 
+[Wed Mar 11 10:37:48 2026] usb 1-2: USB disconnect, device number 9
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect Enter
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Enter
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_usb_bus_stop
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGERROR)	rwnx_send_msg bus is down
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	del_iface: 000000006fb95db6, 2b
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	wlan0 Remove Interface 
+[Wed Mar 11 10:37:48 2026] done.
+[Wed Mar 11 10:37:48 2026] PM: suspend exit
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_deinit wiphy_unregister 
+[Wed Mar 11 10:37:48 2026] tcp_ack_deinit 
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit stop to bustx_thread!! 
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	usb bustx thread will to stop
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	usb bustx thread stop
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Enter
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	stio rx thread
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	usb busrx thread will to stop
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	usb busrx thread stop
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	usb msg busrx thread will to stop
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	usb msg busrx thread stop
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_rx_deinit Exit
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_bus_deinit Exit 
+[Wed Mar 11 10:37:48 2026] AICWFDBG(LOGINFO)	aicwf_usb_disconnect exit
+[Wed Mar 11 10:37:48 2026] Generic FE-GE Realtek PHY r8169-8-100:00: attached PHY driver [Generic FE-GE Realtek PHY] (mii_bus:phy_addr=r8169-8-100:00, irq=IGNORE)
+[Wed Mar 11 10:37:48 2026] usb 1-2: new high-speed USB device number 10 using tegra-xusb
+[Wed Mar 11 10:37:48 2026] r8169 0008:01:00.0 eth0: Link is Down
+[Wed Mar 11 10:37:49 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=5722, bcdDevice= 2.00
+[Wed Mar 11 10:37:49 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 10:37:49 2026] usb 1-2: Product: Aic MSC
+[Wed Mar 11 10:37:49 2026] usb 1-2: Manufacturer: aicsemi
+[Wed Mar 11 10:37:49 2026] usb 1-2: SerialNumber: 20200203
+[Wed Mar 11 10:37:49 2026] usb-storage 1-2:1.0: USB Mass Storage device detected
+[Wed Mar 11 10:37:49 2026] scsi host0: usb-storage 1-2:1.0
+[Wed Mar 11 10:37:49 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:37:50 2026] scsi 0:0:0:0: Direct-Access     AIC      flash            1.0  PQ: 0 ANSI: 4
+[Wed Mar 11 10:37:50 2026] sd 0:0:0:0: [sda] 7648 512-byte logical blocks: (3.92 MB/3.73 MiB)
+[Wed Mar 11 10:37:50 2026] sd 0:0:0:0: [sda] Write Protect is on
+[Wed Mar 11 10:37:50 2026] sd 0:0:0:0: [sda] Mode Sense: 03 00 80 00
+[Wed Mar 11 10:37:50 2026] sd 0:0:0:0: [sda] No Caching mode page found
+[Wed Mar 11 10:37:50 2026] sd 0:0:0:0: [sda] Assuming drive cache: write through
+[Wed Mar 11 10:37:50 2026]  sda: sda1
+[Wed Mar 11 10:37:50 2026] sd 0:0:0:0: [sda] Attached SCSI removable disk
+[Wed Mar 11 10:37:50 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:37:50 2026] usb 1-2: USB disconnect, device number 10
+[Wed Mar 11 10:37:50 2026] scsi 0:0:0:0: rejecting I/O to dead device
+[Wed Mar 11 10:37:50 2026] tegra-xusb 3610000.xhci: entering ELPG done
+[Wed Mar 11 10:37:50 2026] tegra-xusb 3610000.xhci: Firmware timestamp: 2021-12-01 05:27:10 UTC, Version: 80.03 release
+[Wed Mar 11 10:37:50 2026] usb 1-2: new high-speed USB device number 11 using tegra-xusb
+[Wed Mar 11 10:37:51 2026] usb 1-2: New USB device found, idVendor=a69c, idProduct=88de, bcdDevice= 1.00
+[Wed Mar 11 10:37:51 2026] usb 1-2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[Wed Mar 11 10:37:51 2026] usb 1-2: Product: AIC8800DC
+[Wed Mar 11 10:37:51 2026] usb 1-2: Manufacturer: AICSemi
+[Wed Mar 11 10:37:51 2026] usb 1-2: SerialNumber: 20220127
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_usb_chipmatch USE AIC8800DW
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_parse_usb endpoints = 4
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	Number of interfaces: 1 not supported
+[Wed Mar 11 10:37:51 2026] 8800dw
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	Aic high speed USB device detected
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_rx_urb AICWF_USB_RX_URBS:20 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_tx_urb AICWF_USB_TX_URBS:200 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_usb_alloc_msg_rx_urb AICWF_USB_MSG_RX_URBS:100 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the cpu is:0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_bus_init waiting for rx/tx thread init finish 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the cpu is:2
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_busrx_thread set_cpu_ret is:0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_busrx_thread change cpu to:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the policy of current thread is:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_busrx_thread the current pid is:48871
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_bustx_thread set_cpu_ret is:0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_bustx_thread change cpu to:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the policy of current thread is:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_bustx_thread the current pid is:48872
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the policy of current thread is:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the rt_priority of current thread is:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb_msg_busrx_thread the current pid is:48873
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init enter 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init sizeof(struct rwnx_hw):20168 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_cfg80211_init: FILTER_TCP_ACK
+[Wed Mar 11 10:37:51 2026] ========== tcp ack debug tcp_ack_init 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_prealloc_txq_alloc txq not need to kzalloc 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	usb config read 11d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	chip_id=7, chip_sub_id=1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	set_bbpll_config Crystal not provided by CPU 
+[Wed Mar 11 10:37:51 2026] [0x40500010]=e
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	testmode=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_8800dc_u02.bin firmware, @ = 180000
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_8800dc_u02.bin
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_8800dc_u02.bin  
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	file md5:ec8ee791723f4bf9825a6c153a7f0a8f
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	size=31624, dst[0]=7a00edd0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	wifisetting_cfg_addr=11019c, ldpc_cfg_addr=120980, agc_cfg_addr=120180, txgain_cfg_addr=120000
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_patch_tbl_8800dc_u02.bin 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_patch_tbl_8800dc_u02.bin
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_patch_tbl_8800dc_u02.bin  
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	file md5:c0538d7493963b1f37938e6e87f9e304
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	tbl size = 1008 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	FMACFW_PATCH_TBL_8800DC_U02_DESCRIBE_BASE = 187c00 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	di Mar 14 2025 12:29:38 - g09cea8d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110888  181219
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108ec  184d59
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110874  181279
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110658  181b09
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107dc  1874dd
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11055c  184135
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110758  187485
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110620  187631
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107e0  181b99
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110838  181dd5
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104f4  182045
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110490  182f6d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110420  1822b1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11048c  1823cd
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110688  182471
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110738  182ead
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110528  1877a1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110554  182fc1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110798  183615
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106dc  183061
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110584  1830fd
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110588  1832d5
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110634  1854e1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110638  1856b9
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110640  1858c1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11086c  18597d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105fc  1859d9
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105f0  18655d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110860  185641
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11081c  185131
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105a4  185dc1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105c8  185e91
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110810  1851e9
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c4  183869
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1108c8  183705
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110628  1839e1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110750  18664d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d8  186691
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11085c  183e45
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110518  186945
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1105e0  181f7d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1107d8  18368d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1103d0  1869a5
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106c8  186f81
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11056c  186f4d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106b4  185309
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110510  187071
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110550  18710d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1104ec  1842a1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1106d4  187389
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11064c  186241
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110494  184675
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110734  184689
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11047c  1873d1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110740  18757d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110880  1875e9
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110054  181b09
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  11005c  181b09
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110048  182f6d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110088  185929
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100c4  185309
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ef0  185b55
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ec0  183c15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110da0  183c35
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110dc0  183ded
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e28  183d81
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1100e0  183d2d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d88  183e29
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d90  186721
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e18  183b95
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110bb4  18740d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110960  1835f9
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  1109c0  18205d
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f08  182291
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b1c  183619
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b24  183619
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b5c  182585
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b64  182585
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b6c  182585
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b74  182585
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b7c  182585
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b8c  182585
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110b44  1858c1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110ac0  184311
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa0  183575
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110aa8  1835dd
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110a60  186ea1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110e20  186f15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110f3c  187259
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  110d28  1872ad
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  111418  1871a1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030084  187c80
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030000  46e68
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030004  2778c
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030008  40908
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003000c  13824
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030010  13864
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030014  13868
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030018  138e4
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  4003001c  138e8
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c80  d0332b00
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c84  47706008
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c88  47702001
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c8c  bf00bf00
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c90  bf004832
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c94  f3efbf00
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c98  bf004812
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  187c9c  4620bf00
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  40030080  fb
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	patch_tbl:  4010001c  0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	dpd calib & write
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	misc_ram_addr=120ebc
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Upload fmacfw_calib_8800dc_u02.bin firmware, @ = 130000
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Load file fmacfw_calib_8800dc_u02.bin
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/fmacfw_calib_8800dc_u02.bin  
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	file md5:061790c6181e5974a4c44c515e6d0b69
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	size=40284, dst[0]=130000
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	Start app: 00130009, 4
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	userconfig file path:aic_userconfig_8800dw.txt 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Load file aic_userconfig_8800dw.txt
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_load_firmware :firmware path = /lib/firmware/aic8800DC/aic_userconfig_8800dw.txt  
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	file md5:546adac966d71ca97cd9ca247d92180c
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	### Load file done: aic_userconfig_8800dw.txt, size=1138
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: AIC USERCONFIG 2022/0803/1707
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_lvl
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=enable value=1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_1m_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_2m_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_5m5_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_11m_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_6m_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_9m_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_12m_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_18m_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_24m_2g4 value=18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_36m_2g4 value=18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_48m_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11b_11ag_54m_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs0_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs1_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs2_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs3_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs4_2g4 value=18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs5_2g4 value=18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs6_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs7_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs8_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11n_11ac_mcs9_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs0_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs1_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs2_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs3_2g4 value=20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs4_2g4 value=18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs5_2g4 value=18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs6_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs7_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs8_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs9_2g4 value=16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs10_2g4 value=15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=lvl_11ax_mcs11_2g4 value=15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_loss
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_2g4 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_2g4 value=2
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_enable_5g value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=loss_value_5g value=5
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: txpwr_ofst
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_enable value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_1_4 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_5_9 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_10_13 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_36_64 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_100_120 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_122_140 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=ofst_chan_142_165 value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_userconfig_parsing: xtal cap
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_enable value=0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap value=24
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_plat_nvram_set_value:command=xtal_cap_fine value=31
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	userconfig download complete
+
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	Read FW mem: 00150000
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	cfm: [00150000] = 9a51fc91
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	Start app: 00150000, 5
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	is 5g support = 0, vendor_info = 0x00
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	Firmware Version: zh Aug 08 2022 14:54:51 - gcf79227
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:enable:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_lvl_v2_in_fdrv:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:enable:1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_1m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_2m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_5m5_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_11m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_6m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_9m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_12m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_18m_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_24m_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_36m_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_48m_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11b_11ag_54m_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs0_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs1_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs2_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs3_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs4_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs5_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs6_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs7_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs8_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11n_11ac_mcs9_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs0_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs1_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs2_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs3_2g4:20
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs4_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs5_2g4:18
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs6_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs7_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs8_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs9_2g4:16
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs10_2g4:15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_lvl_req:lvl_11ax_mcs11_2g4:15
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:enable      :0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_1_4    :0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_5_9    :0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_10_13  :0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_36_64  :0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_100_120:0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_122_140:0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_txpwr_ofst_in_fdrv:chan_142_165:0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_txpwr_ofst_req:Do not use txpwr_ofst
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_send_rf_calib_req in,chipid=2
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:enable       :0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap     :24
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get_userconfig_xtal_cap:xtal_cap_fine:31
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	get macaddr:6c,2b
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	DFS: radar st = 0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	HT supp 1, VHT supp 1, HE supp 1
+[Wed Mar 11 10:37:51 2026] rwnx_reg_notifier Enter
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_radar_set_domain 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	getRegdomainFromRwnxDB set ccode:00 
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_get_countrycode_channels support channel:1 2 3 4 5 6 7 8 9 10 11 12 13 14 
+[Wed Mar 11 10:37:51 2026] ieee80211 phy4: 
+                           *******************************************************
+                           ** CAUTION: USING PERMISSIVE CUSTOM REGULATORY RULES **
+                           *******************************************************
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_interface_add: wlan%d, 2, 10
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	interface add:6c 1f f7 78 ea 2b
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	aicwf_set_wireless_ext Enter
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	New interface create wlan0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_platform_init rwnx_cfg80211_init exit 
+[Wed Mar 11 10:37:51 2026] tegra-xudc 3550000.xudc: failed to get usbphy-0: -517
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add: 10, p2p-dev-wlan0
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	rwnx_virtual_interface_add, ifname=p2p-dev-wlan0, wdev=0000000024f21c18, vif_idx=1
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGERROR)	p2p dev addr=6c 1f f7 78 ea 2a
+[Wed Mar 11 10:37:51 2026] AICWFDBG(LOGINFO)	P2P interface started
+[Wed Mar 11 10:37:52 2026] r8169 0008:01:00.0 eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[Wed Mar 11 10:37:52 2026] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	rwnx_send_sm_connect_req drv_vif_index:0 connect to go2ap(5) channel:2437 auth_type:0
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->status_code:0 
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind ind->roamed:0 ind->status_code:0 rwnx_vif->drv_conn_state:2
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	rwnx_rx_sm_connect_ind cfg80211_connect_result pass, rwnx_vif->drv_conn_state:3
+[Wed Mar 11 10:37:52 2026] rx eapol
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=1, skb=0000000048a45b8b sta_idx:0
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=0, hostid=0000000048a45b8b, 0x000000000025746f, status=9
+[Wed Mar 11 10:37:52 2026] rx eapol
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	need cfm ethertype:    8e88,user_idx=2, skb=0000000038d2399e sta_idx:0
+[Wed Mar 11 10:37:52 2026] IPv6: ADDRCONF(NETDEV_CHANGE): wlan0: link becomes ready
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	usb_host_tx_cfm_handler:used_idx=1, hostid=0000000038d2399e, 0x000000000025746f, status=9
+[Wed Mar 11 10:37:52 2026] AICWFDBG(LOGINFO)	reord_init_sta:6c:1f:f7:78:ea:2b
+[Wed Mar 11 10:38:05 2026] pwm-tegra-tachometer 39c0000.tachometer: Tachometer Overflow is detected

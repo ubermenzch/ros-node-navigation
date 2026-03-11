@@ -45,9 +45,6 @@ class LidarcostmapNode(Node):
         config = get_config()
         lidar_config = config.get('lidar_costmap_node', {})
 
-        # 初始化日志系统
-        self._init_logger(lidar_config.get('log_enabled', True))
-
         # 获取订阅和发布话题配置
         subscriptions = lidar_config.get('subscriptions', {})
         publications = lidar_config.get('publications', {})
@@ -103,20 +100,12 @@ class LidarcostmapNode(Node):
             10
         )
 
-        self.logger.info('LiDAR Costmap Node initialized')
-        self.logger.info(f'  Scan topic: {self.scan_topic}')
-        self.logger.info(f'  Scan range: {self.scan_range}m')
-        self.logger.info(f'  Height range: {self.min_height}m to {self.max_height}m')
-        self.logger.info(f'  Downsampling: {self.downsampling_factor}')
-        self.logger.info(f'  Update frequency: {self.update_frequency} Hz')
-        self.logger.info(f'  Costmap resolution: {self.costmap_resolution}m')
-        self.logger.info(f'  Bin num: {self.bin_num}')
-        self.logger.info(f'  Obs output topic: {self.obs_output_topic}')
-        self.logger.info(f'  Local costmap topic: {self.local_costmap_topic}')
-
         # 定时器：按指定频率处理激光雷达数据
         period = 1.0 / max(self.update_frequency, 1e-3)
         self.timer = self.create_timer(period, self.process_scan)
+
+        # 初始化日志（在订阅/发布创建之后）
+        self._init_logger(lidar_config.get('log_enabled', True))
 
     def _init_logger(self, enabled: bool):
         """初始化文件日志系统"""
@@ -139,7 +128,21 @@ class LidarcostmapNode(Node):
 
             self.logger.addHandler(file_handler)
 
-            self.logger.info(f'LiDAR Costmap Node started, log file: {log_file}')
+        # 终端输出初始化信息（同时写入文件日志）
+        init_info = [
+            'LiDAR Costmap Node initialized',
+            f'  订阅激光雷达: {self.scan_sub.topic}',
+            f'  扫描范围: {self.scan_range}m',
+            f'  高度范围: {self.min_height}m ~ {self.max_height}m',
+            f'  发布障碍物: {self.obs_pub.topic}',
+            f'  发布局部 costmap: {self.local_costmap_pub.topic}',
+            f'  更新频率: {self.update_frequency} Hz',
+            f'  详细日志已写入: {log_file}',
+        ]
+
+        for line in init_info:
+            self.logger.info(line)  # 写入文件
+            self.get_logger().info(line)  # 输出到终端
 
     def scan_callback(self, msg: LaserScan):
         """激光扫描回调"""

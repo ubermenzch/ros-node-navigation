@@ -195,13 +195,6 @@ class EKFFusionNode(Node):
             10
         )
 
-        self.get_logger().info('EKF Fusion Node initialized')
-        self.get_logger().info(f'  GPS topic: {self.gps_topic}')
-        self.get_logger().info(f'  ODOM topic: {self.odom_topic}')
-        self.get_logger().info(f'  IMU topic: {self.imu_topic}')
-        self.get_logger().info(f'  Fusion pose topic: {self.fusion_pose_topic}')
-        self.get_logger().info(f'  Fusion frequency: {self.fusion_frequency} Hz')
-
         # 定时器：按指定频率执行 EKF 融合
         period = 1.0 / max(self.fusion_frequency, 1e-3)
         self.timer = self.create_timer(period, self.fuse)
@@ -227,18 +220,23 @@ class EKFFusionNode(Node):
 
         self.logger.addHandler(file_handler)
 
-        self.logger.info(f'EKF Fusion Node started, log file: {log_file}')
+        # 终端输出初始化信息（同时写入文件日志）
+        init_info = [
+            f'EKF Fusion Node initialized',
+            f'  融合频率: {self.fusion_frequency} Hz',
+            f'  GPS 话题: {self.gps_topic}',
+            f'  ODOM 话题: {self.odom_topic}',
+            f'  IMU 话题: {self.imu_topic}',
+            f'  GPS 超时: {self.gps_timeout}s',
+            f'  ODOM 超时: {self.odom_timeout}s',
+            f'  IMU 超时: {self.imu_timeout}s',
+            f'  使用 ODOM/IMU 融合: {self.use_odom_imu_fusion}',
+            f'  详细日志已写入: {log_file}',
+        ]
 
-        # 打印配置参数
-        self.logger.info(f'Configuration:')
-        self.logger.info(f'  Frequency: {self.fusion_frequency} Hz')
-        self.logger.info(f'  GPS topic: {self.gps_topic}')
-        self.logger.info(f'  ODOM topic: {self.odom_topic}')
-        self.logger.info(f'  IMU topic: {self.imu_topic}')
-        self.logger.info(f'  GPS timeout: {self.gps_timeout}s')
-        self.logger.info(f'  ODOM timeout: {self.odom_timeout}s')
-        self.logger.info(f'  IMU timeout: {self.imu_timeout}s')
-        self.logger.info(f'  Use ODOM/IMU fusion: {self.use_odom_imu_fusion}')
+        for line in init_info:
+            self.logger.info(line)  # 写入文件
+            self.get_logger().info(line)  # 输出到终端
 
         # EKF协方差矩阵 (6x6)
         # [x, y, yaw, vx, vy, vyaw]

@@ -65,9 +65,6 @@ class OdomNode(Node):
 
         odom_config = config.get('odom_node', {})
 
-        # 初始化日志
-        self._init_logger()
-
         # ========== 话题名称 ==========
         old_odom_topic = odom_config.get('subscriptions', {}).get('old_odom_topic', '/utlidar/robot_odom')
         gps_topic = odom_config.get('subscriptions', {}).get('gps_topic', '/rtk_fix')
@@ -142,11 +139,11 @@ class OdomNode(Node):
         self.new_odom_offset_y = 0.0  # 新odom原点相对于旧odom原点的y偏移
         self.new_odom_offset_yaw = 0.0  # 新odom坐标系Y轴相对于旧odom坐标系Y轴的旋转
 
-        self.logger.info('Odom Node initialized')
-        self.logger.info('  Waiting for GPS and odom data...')
-
         # 定时器：持续发布新 odom 原点 GPS (供 tf_publisher 计算 map->odom TF)
         self.origin_timer = self.create_timer(1.0, self._publish_new_odom_origin_gps)
+
+        # 初始化日志（需要在订阅/发布创建之后）
+        self._init_logger()
 
     def _init_logger(self):
         """初始化日志系统"""
@@ -167,7 +164,19 @@ class OdomNode(Node):
         file_handler.setFormatter(formatter)
 
         self.logger.addHandler(file_handler)
-        self.logger.info(f'Odom Node started, log file: {log_file}')
+
+        # 终端输出初始化信息（同时写入文件日志）
+        init_info = [
+            'Odom Node initialized',
+            f'  旧 odom 话题: {self.odom_sub.topic}',
+            f'  GPS 话题: {self.gps_sub.topic}',
+            f'  发布 odom: {self.new_odom_pub.topic}',
+            f'  详细日志已写入: {log_file}',
+        ]
+
+        for line in init_info:
+            self.logger.info(line)  # 写入文件
+            self.get_logger().info(line)  # 输出到终端
 
     def gps_callback(self, msg: NavSatFix):
         """接收 RTK GPS，记录新 odom 原点并持续发布"""

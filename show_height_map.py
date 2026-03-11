@@ -14,6 +14,7 @@
 
 输出:
 - 360度点云: /utlidar/cloud_360 (PointCloud2)
+- 可视化图像: 保存到指定目录
 """
 
 import rclpy
@@ -25,11 +26,25 @@ import math
 import struct
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque
+from typing import Deque, Optional, List
 import time
 import logging
 import os
 from datetime import datetime
+import threading
+
+# 可视化相关导入
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # 使用非交互式后端，避免需要显示
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+    from mpl_toolkits.mplot3d import Axes3D
+    VISUALIZATION_AVAILABLE = True
+except ImportError as e:
+    print(f"警告: 可视化库导入失败: {e}")
+    print("可视化功能将被禁用，请安装: pip install matplotlib")
+    VISUALIZATION_AVAILABLE = False
 
 from config_loader import get_config
 
@@ -150,6 +165,7 @@ class Lidar360FusionNode(Node):
     雷达360度融合节点
     
     使用IMU航向角将多帧部分扫描拼接成360度点云。
+    添加可视化功能：每次生成360度点云时保存可视化图像。
     """
 
     def __init__(self):
@@ -167,6 +183,15 @@ class Lidar360FusionNode(Node):
         self.max_distance = self.config.get('max_distance', 100.0)  # 最大距离 (米)
         self.pointcloud_timeout = self.config.get('pointcloud_timeout', 0.5)  # 点云超时 (秒)
         self.imu_timeout = self.config.get('imu_timeout', 0.2)  # IMU超时 (秒)
+
+        # 可视化参数
+        self.save_visualization = self.config.get('save_visualization', True)
+        self.visualization_dir = self.config.get('visualization_dir', './lidar_visualizations')
+        self.max_points_in_visualization = self.config.get('max_points_in_visualization', 20000)
+        self.create_3d_visualization = self.config.get('create_3d_visualization', True)
+        self.create_top_down_visualization = self.config.get('create_top_down_visualization', True)
+        self.create_polar_visualization = self.config.get('create_polar_visualization', True)
+        self.create_statistics_visualization = self.config.get('create_statistics_visualization', True)
 
         # 订阅话题
         self.scan_topic = self.config.get('scan_topic', '/utlidar/cloud')
@@ -220,6 +245,21 @@ class Lidar360FusionNode(Node):
         # 上一帧点云的时间戳（用于计算帧间角度）
         self.prev_cloud_time = None
 
+        # 可视化相关状态
+        self.visualization_counter = 0
+        self.visualization_lock = threading.Lock()
+        self.is_saving_visualization = False
+
+        # 创建可视化目录
+        if self.save_visualization and VISUALIZATION_AVAILABLE:
+            os.makedirs(self.visualization_dir, exist_ok=True)
+            self.logger.info(f"可视化图像将保存到: {self.visualization_dir}")
+        elif self.save_visualization and not VISUALIZATION_AVAILABLE:
+            self.logger.warning("可视化功能被禁用，因为matplotlib不可用")
+
+        # 初始化日志系统
+        self._init_logger()
+
     def _init_logger(self):
         """初始化日志系统"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -240,20 +280,20 @@ class Lidar360FusionNode(Node):
 
         self.logger.addHandler(file_handler)
 
-        # 终端输出初始化信息（同时写入文件日志）
-        init_info = [
-            'Lidar360FusionNode 初始化完成',
-            f'  订阅雷达话题: {self.scan_topic}',
-            f'  订阅IMU话题: {self.imu_topic}',
-            f'  发布360度点云: {self.output_topic}',
-            f'  累积帧数: {self.num_frames_to_accumulate}',
-            f'  IMU超时: {self.imu_timeout}秒',
-            f'  详细日志已写入: {log_file}',
-        ]
+        self.logger.info(f'Lidar360FusionNode started, log file: {log_file}')
 
-        for line in init_info:
-            self.logger.info(line)  # 写入文件
-            self.get_logger().info(line)  # 输出到终端
+        # 终端输出初始化信息
+        self.get_logger().info(f'Lidar360FusionNode 初始化完成')
+        self.get_logger().info(f'  订阅雷达话题: {self.scan_topic}')
+        self.get_logger().info(f'  订阅IMU话题: {self.imu_topic}')
+        self.get_logger().info(f'  发布360度点云: {self.output_topic}')
+        self.get_logger().info(f'  累积帧数: {self.num_frames_to_accumulate}')
+        self.get_logger().info(f'  IMU超时: {self.imu_timeout}秒')
+        if self.save_visualization:
+            self.get_logger().info(f'  可视化保存: 启用 (目录: {self.visualization_dir})')
+        else:
+            self.get_logger().info(f'  可视化保存: 禁用')
+        self.get_logger().info(f'  详细日志已写入: {log_file}')
 
     def imu_callback(self, msg: Imu):
         """IMU数据回调"""
@@ -411,17 +451,19 @@ class Lidar360FusionNode(Node):
         return False
 
     def publish_360_cloud(self):
-        """发布360度融合点云"""
+        """发布360度融合点云，并保存可视化图像"""
         if not self.accumulated_clouds:
             return
         
         # 合并所有累积的点云（无需旋转，因为已经是odom坐标系）
         all_points = []
+        all_yaws = []
         
         for cloud_data in self.accumulated_clouds:
             pts = cloud_data.points
             if len(pts) > 0:
                 all_points.append(pts)
+                all_yaws.append(cloud_data.yaw)
         
         if not all_points:
             return
@@ -429,12 +471,14 @@ class Lidar360FusionNode(Node):
         combined_points = np.vstack(all_points)
         
         # 降采样 (可选)
-        if len(combined_points) > 50000:
-            indices = np.random.choice(len(combined_points), 50000, replace=False)
-            combined_points = combined_points[indices]
+        # if len(combined_points) > 50000:
+        #     indices = np.random.choice(len(combined_points), 50000, replace=False)
+        #     combined_points = combined_points[indices]
         
         # 添加intensity字段 (使用距离作为intensity)
         intensities = np.sqrt(combined_points[:, 0]**2 + combined_points[:, 1]**2 + combined_points[:, 2]**2)
+        mask = 0.1 < combined_points[:, 2]
+        print(f"高度过滤: {np.sum(mask)} / {len(combined_points)} 点")
         
         # 构建点数据 (x, y, z, intensity)
         points_with_intensity = np.zeros((len(combined_points), 4), dtype=np.float32)
@@ -448,6 +492,197 @@ class Lidar360FusionNode(Node):
         self.cloud_pub.publish(cloud_msg)
         
         self.logger.info(f'发布360度点云: {len(combined_points)} 点')
+        
+        # 保存可视化图像（异步进行，避免阻塞主线程）
+        if self.save_visualization and VISUALIZATION_AVAILABLE and not self.is_saving_visualization:
+            self.save_visualization_async(combined_points[mask], intensities[mask], all_yaws)
+
+    def save_visualization_async(self, points: np.ndarray, intensities: np.ndarray, yaws: List[float]):
+        """异步保存可视化图像"""
+        if self.is_saving_visualization:
+            self.logger.warning("已有可视化任务正在运行，跳过本次保存")
+            return
+            
+        # 启动新线程保存可视化
+        thread = threading.Thread(
+            target=self._save_visualization_thread,
+            args=(points.copy(), intensities.copy(), yaws.copy())
+        )
+        thread.daemon = True
+        thread.start()
+
+    def _save_visualization_thread(self, points: np.ndarray, intensities: np.ndarray, yaws: List[float]):
+        """在新线程中保存可视化图像"""
+        with self.visualization_lock:
+            self.is_saving_visualization = True
+            try:
+                self._save_visualization_impl(points, intensities, yaws)
+            except Exception as e:
+                self.logger.error(f"保存可视化图像时出错: {e}")
+            finally:
+                self.is_saving_visualization = False
+
+    def _save_visualization_impl(self, points: np.ndarray, intensities: np.ndarray, yaws: List[float]):
+        """实际保存可视化图像的实现"""
+        if not VISUALIZATION_AVAILABLE:
+            return
+            
+        if len(points) == 0:
+            self.logger.warning("点云为空，跳过可视化")
+            return
+        
+        # 降采样用于可视化（如果点太多）
+        if len(points) > self.max_points_in_visualization:
+            indices = np.random.choice(len(points), self.max_points_in_visualization, replace=False)
+            points = points[indices]
+            intensities = intensities[indices]
+        
+        # 准备数据
+        x = points[:, 0]
+        y = points[:, 1]
+        z = points[:, 2]
+        
+        # 计算极坐标
+        ranges = np.sqrt(x**2 + y**2 + z**2)
+        angles = np.arctan2(y, x)  # 相对于雷达的方位角
+        
+        # 创建时间戳
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.visualization_counter += 1
+        counter_str = f"{self.visualization_counter:04d}"
+        
+        # 创建综合可视化图形
+        fig = self._create_comprehensive_visualization(
+            x, y, z, ranges, angles, intensities, yaws, timestamp, counter_str
+        )
+        
+        # 保存图像
+        filename = os.path.join(self.visualization_dir, f"lidar_panorama_{timestamp}_{counter_str}.png")
+        fig.savefig(filename, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        
+        self.logger.info(f"可视化图像已保存: {filename}")
+        
+        # 单独保存3D可视化（可选）
+        if self.create_3d_visualization:
+            fig_3d = self._create_3d_visualization(x, y, z, intensities, timestamp, counter_str)
+            filename_3d = os.path.join(self.visualization_dir, f"lidar_3d_{timestamp}_{counter_str}.png")
+            fig_3d.savefig(filename_3d, dpi=150, bbox_inches='tight')
+            plt.close(fig_3d)
+            
+        # 单独保存俯视图（可选）
+        if self.create_top_down_visualization:
+            fig_top = self._create_top_down_visualization(x, y, intensities, timestamp, counter_str)
+            filename_top = os.path.join(self.visualization_dir, f"lidar_top_{timestamp}_{counter_str}.png")
+            fig_top.savefig(filename_top, dpi=150, bbox_inches='tight')
+            plt.close(fig_top)
+
+    def _create_comprehensive_visualization(self, x, y, z, ranges, angles, intensities, yaws, timestamp, counter_str):
+        """创建综合可视化图形（包含多个子图）"""
+        fig = plt.figure(figsize=(16, 12))
+        fig.suptitle(f'LiDAR 360° Panorama - {timestamp} (#{counter_str})', fontsize=16)
+        
+        # 1. 俯视图 (X-Y平面)
+        if self.create_top_down_visualization:
+            ax1 = plt.subplot(2, 3, 1)
+            scatter1 = ax1.scatter(x, y, c=intensities, cmap='viridis', s=1, alpha=0.7)
+            ax1.set_xlabel('X (m)')
+            ax1.set_ylabel('Y (m)')
+            ax1.set_title('Top View (X-Y Plane)')
+            ax1.grid(True, alpha=0.3)
+            ax1.axis('equal')
+            plt.colorbar(scatter1, ax=ax1, label='Distance (m)')
+        
+        # 2. 侧视图 (X-Z平面)
+        ax2 = plt.subplot(2, 3, 2)
+        scatter2 = ax2.scatter(x, z, c=intensities, cmap='plasma', s=1, alpha=0.7)
+        ax2.set_xlabel('X (m)')
+        ax2.set_ylabel('Z (m)')
+        ax2.set_title('Side View (X-Z Plane)')
+        ax2.grid(True, alpha=0.3)
+        plt.colorbar(scatter2, ax=ax2, label='Distance (m)')
+        
+        # 3. 极坐标图
+        if self.create_polar_visualization:
+            ax3 = plt.subplot(2, 3, 3, projection='polar')
+            scatter3 = ax3.scatter(angles, ranges, c=intensities, cmap='hsv', s=1, alpha=0.7)
+            ax3.set_title('Polar View (Range vs Angle)')
+            ax3.grid(True, alpha=0.3)
+            plt.colorbar(scatter3, ax=ax3, label='Distance (m)')
+        
+        # 4. 3D视图
+        if self.create_3d_visualization:
+            ax4 = plt.subplot(2, 3, 4, projection='3d')
+            scatter4 = ax4.scatter(x, y, z, c=intensities, cmap='viridis', s=1, alpha=0.7)
+            ax4.set_xlabel('X (m)')
+            ax4.set_ylabel('Y (m)')
+            ax4.set_zlabel('Z (m)')
+            ax4.set_title('3D View')
+        
+        # 5. 距离分布直方图
+        ax5 = plt.subplot(2, 3, 5)
+        ax5.hist(ranges, bins=50, range=(0, np.max(ranges)+1), edgecolor='black', alpha=0.7)
+        ax5.set_xlabel('Range (m)')
+        ax5.set_ylabel('Point Count')
+        ax5.set_title('Range Distribution')
+        ax5.grid(True, alpha=0.3)
+        
+        # 6. 角度分布直方图
+        ax6 = plt.subplot(2, 3, 6)
+        angles_deg = np.degrees(angles)
+        ax6.hist(angles_deg, bins=36, range=(-180, 180), edgecolor='black', alpha=0.7)
+        ax6.set_xlabel('Angle (degrees)')
+        ax6.set_ylabel('Point Count')
+        ax6.set_title('Angle Distribution')
+        ax6.grid(True, alpha=0.3)
+        
+        # 添加统计信息
+        stats_text = (
+            f"总点数: {len(x):,}\n"
+            f"距离范围: [{np.min(ranges):.2f}, {np.max(ranges):.2f}] m\n"
+            f"平均距离: {np.mean(ranges):.2f} m\n"
+            f"X范围: [{np.min(x):.2f}, {np.max(x):.2f}] m\n"
+            f"Y范围: [{np.min(y):.2f}, {np.max(y):.2f}] m\n"
+            f"Z范围: [{np.min(z):.2f}, {np.max(z):.2f}] m\n"
+            f"累积帧数: {len(yaws)}\n"
+            f"覆盖角度: {np.degrees(max(yaws) - min(yaws)):.1f}°"
+        )
+        
+        plt.figtext(0.02, 0.02, stats_text, fontsize=9,
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8))
+        
+        plt.tight_layout()
+        return fig
+
+    def _create_3d_visualization(self, x, y, z, intensities, timestamp, counter_str):
+        """创建单独的3D可视化"""
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        
+        scatter = ax.scatter(x, y, z, c=intensities, cmap='viridis', s=2, alpha=0.7)
+        ax.set_xlabel('X (m)')
+        ax.set_ylabel('Y (m)')
+        ax.set_zlabel('Z (m)')
+        ax.set_title(f'3D LiDAR Point Cloud - {timestamp} (#{counter_str})')
+        
+        plt.colorbar(scatter, ax=ax, label='Distance (m)')
+        plt.tight_layout()
+        return fig
+
+    def _create_top_down_visualization(self, x, y, intensities, timestamp, counter_str):
+        """创建单独的俯视图"""
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        scatter = ax.scatter(x, y, c=intensities, cmap='viridis', s=2, alpha=0.7)
+        ax.set_xlabel('X (m)')
+        ax.set_ylabel('Y (m)')
+        ax.set_title(f'Top-Down LiDAR View - {timestamp} (#{counter_str})')
+        ax.grid(True, alpha=0.3)
+        ax.axis('equal')
+        
+        plt.colorbar(scatter, ax=ax, label='Distance (m)')
+        plt.tight_layout()
+        return fig
 
     def quaternion_to_yaw(self, x: float, y: float, z: float, w: float) -> float:
         """从四元数提取 yaw 角 (绕Z轴旋转)"""
@@ -473,4 +708,8 @@ def main(args=None):
 
 
 if __name__ == '__main__':
+    import matplotlib
+
+    # 提高最大打开图形数量
+    matplotlib.rcParams['figure.max_open_warning'] = 100
     main()

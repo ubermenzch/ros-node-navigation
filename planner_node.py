@@ -41,9 +41,6 @@ class PlannerNode(Node):
         config = get_config()
         planner_config = config.get('planner_node', {})
 
-        # 初始化日志
-        self._init_logger(planner_config.get('log_enabled', True))
-
         # ------ 话题与参数 ------
         # 获取订阅和发布话题配置
         subscriptions = planner_config.get('subscriptions', {})
@@ -111,12 +108,8 @@ class PlannerNode(Node):
         period = 1.0 / max(self.update_frequency, 1e-3)
         self.timer = self.create_timer(period, self.update)
 
-        self.logger.info('Planner Node initialized')
-        self.logger.info(f'  Robot pose topic: {self.robot_pose_topic}')
-        self.logger.info(f'  Nav map points topic: {self.nav_map_points_topic}')
-        self.logger.info(f'  Path output topic: {self.path_topic}')
-        self.logger.info(f'  Update frequency: {self.update_frequency} Hz')
-        self.logger.info(f'  Arrival threshold: {self.arrival_threshold} m')
+        # 初始化日志（在订阅/发布创建之后）
+        self._init_logger(planner_config.get('log_enabled', True))
 
     # ==================== 日志 ====================
 
@@ -140,7 +133,20 @@ class PlannerNode(Node):
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
 
-        self.logger.info(f'Planner Node started, log file: {log_file}')
+        # 终端输出初始化信息（同时写入文件日志）
+        init_info = [
+            'Planner Node initialized',
+            f'  订阅机器人 pose: {self.pose_sub.topic}',
+            f'  订阅导航地图点: {self.nav_map_points_sub.topic}',
+            f'  发布路径: {self.path_pub.topic}',
+            f'  更新频率: {self.update_frequency} Hz',
+            f'  到达阈值: {self.arrival_threshold} m',
+            f'  详细日志已写入: {log_file}',
+        ]
+
+        for line in init_info:
+            self.logger.info(line)  # 写入文件
+            self.get_logger().info(line)  # 输出到终端
 
     # ==================== 订阅回调 ====================
 

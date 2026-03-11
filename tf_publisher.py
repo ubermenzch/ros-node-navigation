@@ -35,6 +35,9 @@ from std_msgs.msg import String
 import json
 import math
 import xml.etree.ElementTree as ET
+import logging
+import os
+from datetime import datetime
 
 
 class TFPublisher(Node):
@@ -46,6 +49,9 @@ class TFPublisher(Node):
         # 默认 URDF 路径
         if urdf_path is None:
             urdf_path = '/home/unitree/navigation_system/URDF/GO2_URDF/urdf/go2_description.urdf'
+
+        # 保存 URDF 路径供日志使用
+        self.urdf_path = urdf_path
 
         # ========== TF 广播器 ==========
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -94,11 +100,42 @@ class TFPublisher(Node):
             10
         )
 
-        self.get_logger().info('TF Publisher 节点已启动')
-        self.get_logger().info(f'  URDF 路径: {urdf_path}')
+        # 初始化日志（在订阅创建之后，发布静态TF之前）
+        self._init_logger()
 
         # 发布静态变换 base_link -> imu
         self._publish_static_imu_tf(urdf_path)
+
+    def _init_logger(self):
+        """初始化日志系统"""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{timestamp}')
+        os.makedirs(log_dir, exist_ok=True)
+
+        log_file = os.path.join(log_dir, f'tf_publisher_log_{timestamp}.log')
+
+        self.logger = logging.getLogger('tf_publisher')
+        self.logger.setLevel(logging.INFO)
+        self.logger.handlers.clear()
+
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+
+        self.logger.addHandler(file_handler)
+
+        # 终端输出初始化信息（同时写入文件日志）
+        init_info = [
+            f'TF Publisher 节点已启动',
+            f'  URDF 路径: {self.urdf_path}',
+            f'  详细日志已写入: {log_file}',
+        ]
+
+        for line in init_info:
+            self.logger.info(line)  # 写入文件
+            self.get_logger().info(line)  # 输出到终端
 
     def map_origin_callback(self, msg):
         """接收地图原点 GPS"""
@@ -109,11 +146,11 @@ class TFPublisher(Node):
 
             if self.map_origin_lat is not None and self.map_origin_lon is not None:
                 self.map_origin_received = True
-                self.get_logger().info(f'Received map origin GPS: lat={self.map_origin_lat:.8f}, lon={self.map_origin_lon:.8f}')
+                self.logger.info(f'Received map origin GPS: lat={self.map_origin_lat:.8f}, lon={self.map_origin_lon:.8f}')
                 self._try_publish_map_odom_tf()
 
         except Exception as e:
-            self.get_logger().error(f'Failed to parse map origin: {e}')
+            self.logger.error(f'Failed to parse map origin: {e}')
 
     def new_odom_origin_callback(self, msg):
         """接收新 odom 原点 GPS"""
@@ -127,11 +164,11 @@ class TFPublisher(Node):
                 self.meters_per_degree_lon = 111320.0 * math.cos(math.radians(self.new_odom_origin_lat))
 
                 self.new_odom_origin_received = True
-                self.get_logger().info(f'Received new_odom origin GPS: lat={self.new_odom_origin_lat:.8f}, lon={self.new_odom_origin_lon:.8f}')
+                self.logger.info(f'Received new_odom origin GPS: lat={self.new_odom_origin_lat:.8f}, lon={self.new_odom_origin_lon:.8f}')
                 self._try_publish_map_odom_tf()
 
         except Exception as e:
-            self.get_logger().error(f'Failed to parse new_odom origin: {e}')
+            self.logger.error(f'Failed to parse new_odom origin: {e}')
 
     def new_odom_callback(self, msg):
         """接收新 odom 数据，发布动态 TF: odom -> base_link"""
@@ -149,7 +186,7 @@ class TFPublisher(Node):
             self._publish_odom_to_base_link(msg.header.stamp, x, y, z, yaw)
 
         except Exception as e:
-            self.get_logger().warn(f'处理 odom 消息错误: {e}', throttle_duration_sec=5.0)
+            self.logger.warning(f'处理 odom 消息错误: {e}')
 
     def _try_publish_map_odom_tf(self):
         """尝试发布 map -> odom 静态 TF"""
@@ -199,7 +236,7 @@ class TFPublisher(Node):
         self.tf_broadcaster.sendTransform(transform)
         self.map_odom_tf_published = True
 
-        self.get_logger().info(f'Published map->odom TF: x={x:.4f}, y={y:.4f}, yaw={math.degrees(yaw):.2f}deg')
+        self.logger.info(f'Published map->odom TF: x={x:.4f}, y={y:.4f}, yaw={math.degrees(yaw):.2f}deg')
 
     def _publish_odom_to_base_link(self, stamp, x: float, y: float, z: float, yaw: float):
         """发布动态 TF: odom -> base_link"""
@@ -231,14 +268,14 @@ class TFPublisher(Node):
                     break
 
             if imu_joint is None:
-                self.get_logger().warn('未找到 imu_joint，使用默认值')
+                self.logger.warning('未找到 imu_joint，使用默认值')
                 self._publish_imu_tf_default()
                 return
 
             # 获取 origin
             origin = imu_joint.find('origin')
             if origin is None:
-                self.get_logger().warn('imu_joint 无 origin，使用默认值')
+                self.logger.warning('imu_joint 无 origin，使用默认值')
                 self._publish_imu_tf_default()
                 return
 
@@ -252,7 +289,7 @@ class TFPublisher(Node):
             self._send_static_imu_tf(xyz[0], xyz[1], xyz[2], rpy[0], rpy[1], rpy[2])
 
         except Exception as e:
-            self.get_logger().error(f'解析 URDF 失败: {e}，使用默认值')
+            self.logger.error(f'解析 URDF 失败: {e}，使用默认值')
             self._publish_imu_tf_default()
 
     def _publish_imu_tf_default(self):
@@ -279,7 +316,7 @@ class TFPublisher(Node):
         t.transform.rotation.w = q[3]
 
         self.static_tf_broadcaster.sendTransform(t)
-        self.get_logger().info(f'Published static TF: base_link -> imu (x={x:.5f}, y={y:.5f}, z={z:.5f})')
+        self.logger.info(f'Published static TF: base_link -> imu (x={x:.5f}, y={y:.5f}, z={z:.5f})')
 
     def _yaw_to_quaternion(self, yaw: float):
         """yaw 角转四元数"""

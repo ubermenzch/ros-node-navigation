@@ -51,10 +51,6 @@ class ControllerNode(Node):
         # 获取 controller_node 配置
         controller_config = config.get('controller_node', {})
 
-        # 初始化日志系统
-        log_enabled = controller_config.get('log_enabled', True)
-        self._init_logger(log_enabled)
-
         # 话题配置
         subscriptions = controller_config.get('subscriptions', {})
         publications = controller_config.get('publications', {})
@@ -98,10 +94,6 @@ class ControllerNode(Node):
         self.max_v = controller_config.get('max_v', 1.0)  # 最大线速度 m/s
         self.max_w = controller_config.get('max_w', 1.0)  # 最大角速度 rad/s
         self.arrival_threshold = controller_config.get('arrival_threshold', 0.5)  # 到达阈值 (米)
-        
-        # 加载模型
-        self.model = None
-        self._load_model(controller_config)
 
         # 创建订阅者 - 路径
         self.path_sub = self.create_subscription(
@@ -110,7 +102,7 @@ class ControllerNode(Node):
             self.path_callback,
             10
         )
-        
+
         # 创建订阅者 - 障碍物观测
         self.obs_sub = self.create_subscription(
             String,
@@ -118,7 +110,7 @@ class ControllerNode(Node):
             self.obs_callback,
             10
         )
-        
+
         # 创建订阅者 - 机器狗地图坐标
         self.pose_sub = self.create_subscription(
             String,
@@ -126,7 +118,7 @@ class ControllerNode(Node):
             self.pose_callback,
             10
         )
-        
+
         # 创建订阅者 - 速度（wheel_odom 获取线速度 v，imu 获取角速度 w）
         self.wheel_odom_sub = self.create_subscription(
             Odometry,
@@ -134,14 +126,14 @@ class ControllerNode(Node):
             self.wheel_odom_callback,
             10
         )
-        
+
         self.imu_sub = self.create_subscription(
             Imu,
             self.imu_topic,
             self.imu_callback,
             10
         )
-        
+
         # 创建发布者 - 控制指令
         self.cmd_pub = self.create_publisher(
             Float64MultiArray,
@@ -152,20 +144,17 @@ class ControllerNode(Node):
         # 更新频率
         self.update_frequency = controller_config.get('update_frequency', 10.0)
 
-        self.logger.info('Controller Node initialized')
-        self.logger.info(f'  Path topic: {self.path_topic}')
-        self.logger.info(f'  Lidar obs topic: {self.lidar_obs_topic}')
-        self.logger.info(f'  Map pose topic: {self.map_pose_topic}')
-        self.logger.info(f'  Wheel odom topic (v): {self.wheel_odom_topic}')
-        self.logger.info(f'  IMU topic (w): {self.imu_topic}')
-        self.logger.info(f'  Cmd topic: {self.cmd_topic}')
-        self.logger.info(f'  Update frequency: {self.update_frequency} Hz')
-        self.logger.info(f'  Max v: {self.max_v}, Max w: {self.max_w}')
-        self.logger.info(f'  Arrival threshold: {self.arrival_threshold} m')
-
         # 定时器：按指定频率执行控制
         period = 1.0 / max(self.update_frequency, 1e-3)
         self.timer = self.create_timer(period, self.update)
+
+        # 初始化日志（在订阅/发布创建之后，加载模型之前）
+        log_enabled = controller_config.get('log_enabled', True)
+        self._init_logger(log_enabled)
+
+        # 加载模型
+        self.model = None
+        self._load_model(controller_config)
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
@@ -188,7 +177,23 @@ class ControllerNode(Node):
 
             self.logger.addHandler(file_handler)
 
-            self.logger.info(f'Controller Node started, log file: {log_file}')
+        # 终端输出初始化信息（同时写入文件日志）
+        init_info = [
+            'Controller Node initialized',
+            f'  订阅路径: {self.path_sub.topic}',
+            f'  订阅激光雷达障碍物: {self.obs_sub.topic}',
+            f'  订阅地图 pose: {self.pose_sub.topic}',
+            f'  订阅里程计(v): {self.wheel_odom_sub.topic}',
+            f'  订阅 IMU(w): {self.imu_sub.topic}',
+            f'  发布控制命令: {self.cmd_pub.topic}',
+            f'  更新频率: {self.update_frequency} Hz',
+            f'  最大速度: {self.max_v} m/s, 最大角速度: {self.max_w} rad/s',
+            f'  详细日志已写入: {log_file}',
+        ]
+
+        for line in init_info:
+            self.logger.info(line)  # 写入文件
+            self.get_logger().info(line)  # 输出到终端
 
     def _load_model(self, controller_config: dict):
         """加载强化学习模型"""

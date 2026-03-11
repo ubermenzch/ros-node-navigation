@@ -29,7 +29,7 @@ else
 fi
 
 # 清理可能残留的 ROS2 节点进程
-ROS_PIDS=$(ps aux | grep -E "(ekf_fusion_node|lidar_costmap_node|planner_node|nav2_gps)" | grep -v grep | awk '{print $2}')
+ROS_PIDS=$(ps aux | grep -E "(ekf_fusion_node|lidar_costmap_node|planner_node|navigation_system)" | grep -v grep | awk '{print $2}')
 if [ -n "$ROS_PIDS" ]; then
     echo "发现残留进程，正在清理..."
     echo "$ROS_PIDS" | xargs -r kill -2 2>/dev/null

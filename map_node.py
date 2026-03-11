@@ -57,17 +57,11 @@ class MapNode(Node):
         map_node_config = config.get('map_node', {})
         planner_config = config.get('planner_node', {})
 
-        # 初始化日志系统（必须在任何 self.logger 调用之前）
-        log_enabled = map_node_config.get('log_enabled', True)
-        self._init_logger(log_enabled)
-        
         # 地图生成参数
         self.square_size = planner_config.get('square_size', 20.0)
         self.square_interval = planner_config.get('square_interval', 1.0)
         self.resolution = planner_config.get('resolution', 0.1)
 
-        self.logger.info('Running in outdoor mode')
-        
         # 话题配置
         publications = map_node_config.get('publications', {})
         subscriptions = map_node_config.get('subscriptions', {})
@@ -77,7 +71,7 @@ class MapNode(Node):
         self.map_update_topic = publications.get('map_update_topic', '/map_update')
         self.nav_map_points_topic = publications.get('nav_map_points_topic', '/nav_map_points')
         self.map_pose_topic = publications.get('map_pose_topic', '/map_pose')
-        
+
         # 订阅话题
         self.gps_path_topic = subscriptions.get('gps_path_topic', '/gps_path')
         self.robot_gps_topic = subscriptions.get('robot_gps_topic', '/rtk_fix')
@@ -88,21 +82,21 @@ class MapNode(Node):
         # 状态锁
         self.pose_lock = threading.Lock()
         self.path_lock = threading.Lock()
-        
+
         # 融合定位（odom坐标系）
         self.latest_fusion_pose = None
-        
+
         # RTK IMU 朝向（绝对方向：朝东0度，朝北90度）
         self.latest_imu_yaw = None
         self.last_imu_time = 0.0
         self.imu_timeout = 1.0  # 秒
-        
+
         # 计算出的 map_pose
         self.latest_map_pose = None
-        
+
         # 机器人 GPS
         self.latest_robot_gps = None
-        
+
         # 导航 GPS 点
         self.nav_gps_points = []
         self.batch_id = ""
@@ -131,7 +125,7 @@ class MapNode(Node):
             self.map_update_topic,
             10
         )
-        
+
         # 创建发布者 - 导航地图坐标
         self.nav_map_points_pub = self.create_publisher(
             String,
@@ -193,23 +187,13 @@ class MapNode(Node):
             10
         )
 
-        self.logger.info('Map Node initialized')
-        self.logger.info(f'  GPS path topic: {self.gps_path_topic}')
-        self.logger.info(f'  Robot GPS topic: {self.robot_gps_topic}')
-        self.logger.info(f'  Fusion pose topic: {self.fusion_pose_topic}')
-        self.logger.info(f'  RTK IMU topic: {self.rtk_imu_topic}')
-        self.logger.info(f'  Map topic: {self.map_topic}')
-        self.logger.info(f'  Map update topic: {self.map_update_topic}')
-        self.logger.info(f'  Map pose topic: {self.map_pose_topic}')
-        self.logger.info(f'  Nav map points topic: {self.nav_map_points_topic}')
-        self.logger.info(f'  Local costmap topic: {self.local_costmap_topic}')
-        self.logger.info(f'  Resolution: {self.resolution}m')
-        self.logger.info(f'  Update frequency: {self.update_frequency} Hz')
-        self.logger.info('  Map size: pending GPS path')
-
         # 定时器：按指定频率发布地图和 map_pose
         period = 1.0 / max(self.update_frequency, 1e-3)
         self.timer = self.create_timer(period, self.update)
+
+        # 初始化日志（在订阅/发布创建之后）
+        log_enabled = map_node_config.get('log_enabled', True)
+        self._init_logger(log_enabled)
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
@@ -232,7 +216,22 @@ class MapNode(Node):
 
             self.logger.addHandler(file_handler)
 
-            self.logger.info(f'Map Node started, log file: {log_file}')
+        # 终端输出初始化信息（同时写入文件日志）
+        init_info = [
+            'Map Node initialized',
+            'Running in outdoor mode',
+            f'  订阅 GPS 路径: {self.gps_path_topic}',
+            f'  订阅机器人 GPS: {self.robot_gps_topic}',
+            f'  订阅融合定位: {self.fusion_pose_topic}',
+            f'  发布地图: {self.map_topic}',
+            f'  发布地图 pose: {self.map_pose_topic}',
+            f'  分辨率: {self.resolution}m',
+            f'  更新频率: {self.update_frequency} Hz',
+        ]
+
+        for line in init_info:
+            self.logger.info(line)  # 写入文件
+            self.get_logger().info(line)  # 输出到终端
 
     def robot_gps_callback(self, msg: NavSatFix):
         """接收机器人 GPS"""

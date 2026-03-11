@@ -6,12 +6,12 @@
 # ============================================================
 ekf_fusion_node:
   # 节点运行频率 (Hz)
-  frequency: 10.0
+  frequency: 10.0 # 每次融合的时间步长dt由频率决定
 
   # ========== 订阅话题 ==========
   subscriptions:
-    gps_topic: "/rtk_fix"
-    odom_topic: "/utlidar/odom"
+    gps_topic: "/gnss"
+    odom_topic: "/utlidar/robot_odom"
     imu_topic: "/imu/data"
 
   # ========== 发布话题 ==========
@@ -20,29 +20,30 @@ ekf_fusion_node:
     map_pose_topic: "/navigation/map_pose"         # 地图坐标系的定位（用于规划）
     gps_weight_topic: "/navigation/gps_weight"
 
-  # 传感器超时时间 (秒)
-  gps_timeout: 1.0
-  odom_timeout: 0.2
-  imu_timeout: 0.2
+  # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
+  gps_timeout: 0.9
+  odom_timeout: 0.09
+  imu_timeout: 0.09
 
   # GPS质量阈值
   # GPS位置协方差阈值，用于判断GPS信号质量。协方差小于此值认为GPS信号良好，大于此值认为信号差
   gps_position_covariance_threshold: 0.5
-  gps_satellite_min: 6  # 最小卫星数要求
+  # GPS信号良好时的测量噪声（协方差小于阈值时使用）
+  gps_measurement_noise_good: 0.1
+  # GPS信号差时的测量噪声（协方差大于阈值时使用，增大噪声降低GPS权重）
+  gps_measurement_noise_bad: 10.0
+  gps_satellite_min: 6  # 最小卫星数要求，暂时弃用
 
   # EKF参数 - 用于扩展卡尔曼滤波的预测和校正步骤
-  # process_noise_position: 位置的过程噪声（米），用于EKF预测步骤的协方差矩阵Q，影响状态预测的不确定性
+  # 代表模型对里程计位置预测的不确定性，当融合定位不准时可适当调大该值
   process_noise_position: 0.1
-  # process_noise_yaw: 航向角的过程噪声（弧度），用于EKF预测步骤中航向角的不确定性
-  process_noise_yaw: 0.05
-  # odom_measurement_noise: 里程计测量噪声，用于ODOM校正步骤的观测噪声矩阵R
+  # 代表模型对里程计航向角预测的不确定性，当融合定位不准时可适当调大该值
+  process_noise_yaw: 0.05  
+  # 代表里程计测量的噪声
   odom_measurement_noise: 0.1
-  # gps_measurement_noise_good: GPS信号良好时的测量噪声（协方差小于阈值时使用）
-  gps_measurement_noise_good: 0.1
-  # gps_measurement_noise_bad: GPS信号差时的测量噪声（协方差大于阈值时使用，增大噪声降低GPS权重）
-  gps_measurement_noise_bad: 10.0
-  # imu_measurement_noise_yaw: IMU航向角测量噪声，用于IMU航向校正的观测噪声矩阵R
+  # 代表IMU航向角测量的不确定性，当融合定位不准时可适当调大该值
   imu_measurement_noise_yaw: 0.1
+
 
   # 日志配置
   log_frequency_stats: true
@@ -133,8 +134,8 @@ odom_node:
 
   # ========== 发布话题 ==========
   publications:
-    new_odom_topic: "/navigation/robot_odom"  # 新odom（原点为main.py启动时GPS）
-    new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（供tf_publisher使用）
+    new_odom_topic: "/navigation/odom"  # 新odom（原点为main.py启动时GPS）
+    new_odom_origin_gps_topic: "/navigation/odom_origin_gps"  # 新odom原点GPS（供tf_publisher使用）
 
   # 日志配置
   log_enabled: true
@@ -149,8 +150,8 @@ tf_publisher:
   # 订阅话题
   subscriptions:
     map_origin_gps_topic: "/navigation/map_origin_gps"      # 地图原点GPS（来自map_node）
-    new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（来自odom_node）
-    new_odom_topic: "/navigation/robot_odom"    # 新odom（来自odom_node）
+    new_odom_origin_gps_topic: "/navigation/odom_origin_gps"  # 新odom原点GPS（来自odom_node）
+    new_odom_topic: "/navigation/odom"    # 新odom（来自odom_node）
 
   # 日志配置
   log_enabled: true
@@ -252,4 +253,4 @@ common:
   # 测试模式配置
   # ============================================================
   # 开启测试模式时不启动 controller_node，由遥控器手动控制机器人
-  test_mode: true
+  test_mode: false

@@ -16,10 +16,9 @@ class Nav2GPSNode(Node):
     """导航系统主节点，负责启动所有子节点"""
 
     def __init__(self):
-        super().__init__('nav2_gps')
+        super().__init__('navigation_system')
 
-        self.get_logger().info('Starting Nav2 GPS System...')
-        self.get_logger().info('Using GPS/RTK + odom + imu for localization')
+        self.get_logger().info('Navigation System started')
 
         # 启动各个节点
         self.start_nodes()
@@ -35,37 +34,45 @@ class Nav2GPSNode(Node):
         self.get_logger().info('Starting odom_node...')
         from odom_node import OdomNode
         self.odom_node = OdomNode(config)
+        self.get_logger().info('odom_node initialized')
 
         self.get_logger().info('Starting tf_publisher...')
         from tf_publisher import TFPublisher
         tf_config = config.get('tf_publisher', {})
         urdf_path = tf_config.get('urdf_path', '/home/unitree/navigation_system/URDF/GO2_URDF/urdf/go2_description.urdf')
         self.tf_publisher = TFPublisher(urdf_path)
+        self.get_logger().info('tf_publisher initialized')
 
         self.get_logger().info('Starting ekf_fusion_node...')
         from ekf_fusion_node import EKFFusionNode
         self.ekf_fusion_node = EKFFusionNode()
+        self.get_logger().info('ekf_fusion_node initialized')
 
         self.get_logger().info('Starting map_node...')
         from map_node import MapNode
         self.map_node = MapNode()
+        self.get_logger().info('map_node initialized')
 
         self.get_logger().info('Starting lidar_costmap_node...')
         from lidar_costmap_node import LidarcostmapNode
         self.lidar_costmap_node = LidarcostmapNode()
+        self.get_logger().info('lidar_costmap_node initialized')
 
         self.get_logger().info('Starting lidar_360_fusion_node...')
         from lidar_360_fusion_node import Lidar360FusionNode
         self.lidar_360_fusion_node = Lidar360FusionNode()
+        self.get_logger().info('lidar_360_fusion_node initialized')
 
         self.get_logger().info('Starting planner_node...')
         from planner_node import PlannerNode
         self.planner_node = PlannerNode()
+        self.get_logger().info('planner_node initialized')
 
         if not is_test_mode:
             self.get_logger().info('Starting controller_node...')
             from controller_node import ControllerNode
             self.controller_node = ControllerNode()
+            self.get_logger().info('controller_node initialized')
 
         self.get_logger().info('All nodes started successfully!')
 
