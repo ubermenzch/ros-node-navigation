@@ -92,7 +92,7 @@ lidar_costmap_node:
   scan_range: 10.0
 
   # 高度过滤 (米)
-  min_height: -0.1             # 最低高度
+  min_height: -0.4             # 最低高度
   max_height: 1.5              # 最高高度
 
   # 稀疏化参数

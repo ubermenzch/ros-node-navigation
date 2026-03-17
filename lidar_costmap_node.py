@@ -225,45 +225,33 @@ class LidarCostmapNode(Node):
             self.get_logger().warning(message)
 
     def pointcloud2_to_xyz_array(self, msg: PointCloud2) -> np.ndarray:
-        """
-        PointCloud2 -> ROS 标准坐标系下的 (N, 3) numpy array
-        手动解析，不依赖 sensor_msgs_py
-        """
-        try:
-            # 找到 x, y, z 字段的偏移量
-            x_offset = y_offset = z_offset = None
-            for field in msg.fields:
-                if field.name == 'x':
-                    x_offset = field.offset
-                elif field.name == 'y':
-                    y_offset = field.offset
-                elif field.name == 'z':
-                    z_offset = field.offset
+        offsets = {}
+        for f in msg.fields:
+            if f.name in ('x', 'y', 'z'):
+                offsets[f.name] = f.offset
 
-            if x_offset is None or y_offset is None or z_offset is None:
-                raise ValueError("PointCloud2 missing x, y, or z field")
+        if len(offsets) != 3:
+            raise ValueError("PointCloud2 missing x/y/z")
 
-            num_points = msg.width
-
-            # 直接从二进制数据中提取坐标
-            x = np.frombuffer(msg.data, dtype=np.float32, count=num_points, offset=x_offset)
-            y = np.frombuffer(msg.data, dtype=np.float32, count=num_points, offset=y_offset)
-            z = np.frombuffer(msg.data, dtype=np.float32, count=num_points, offset=z_offset)
-
-            points = np.column_stack([x, y, z])
-
-        except Exception as e:
-            self._warn_throttled('read_points_error', f'Failed to parse PointCloud2: {e}', 1.0)
+        n = msg.width * msg.height
+        if n == 0:
             return np.empty((0, 3), dtype=np.float32)
 
-        if len(points) == 0:
-            return np.empty((0, 3), dtype=np.float32)
+        endian = '>' if msg.is_bigendian else '<'
+        dtype = np.dtype({
+            'names': ['x', 'y', 'z'],
+            'formats': [endian + 'f4', endian + 'f4', endian + 'f4'],
+            'offsets': [offsets['x'], offsets['y'], offsets['z']],
+            'itemsize': msg.point_step,
+        })
 
-        # 过滤无效点：x 和 y 同时为 0 的点去掉
-        valid = (points[:, 0] != 0.0) | (points[:, 1] != 0.0)
-        points = points[valid]
+        arr = np.frombuffer(msg.data, dtype=dtype, count=n)
+        points = np.stack([arr['x'], arr['y'], arr['z']], axis=1).astype(np.float32, copy=False)
 
-        return points
+        valid = np.isfinite(points).all(axis=1)
+        valid &= ~((points[:, 0] == 0.0) & (points[:, 1] == 0.0) & (points[:, 2] == 0.0))
+
+        return points[valid]
 
     def pointcloud_callback(self, msg: PointCloud2):
         """
