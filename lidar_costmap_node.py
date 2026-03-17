@@ -40,11 +40,16 @@ from datetime import datetime
 
 from config_loader import get_config
 from frequency_stats import FrequencyStats
+from builtin_interfaces.msg import Time as RosTime
 
 
 class LidarCostmapNode(Node):
-    def __init__(self):
+    def __init__(self, log_dir: str = None, timestamp: str = None):
         super().__init__('lidar_costmap_node')
+
+        # 使用传入的日志目录和时间戳，或生成新的
+        self.log_dir = log_dir
+        self.timestamp = timestamp if timestamp is not None else datetime.now().strftime('%Y%m%d_%H%M%S')
 
         # 加载配置
         config = get_config()
@@ -83,9 +88,6 @@ class LidarCostmapNode(Node):
 
         # 点云时间戳失效阈值（秒）
         self.cloud_timeout = float(lidar_config.get('cloud_timeout', 1.0))
-
-        # 是否输出每一步耗时
-        self.log_timing = bool(lidar_config.get('log_timing', True))
 
         # 状态：只维护最新点云（ROS 标准坐标系）
         self.latest_points = None               # numpy array, shape (N, 3)
@@ -139,9 +141,6 @@ class LidarCostmapNode(Node):
         period = 1.0 / max(self.frequency, 1e-3)
         self.timer = self.create_timer(period, self.update)
 
-        # 初始化日志
-        self._init_logger(lidar_config.get('log_enabled', True))
-
         # 初始化频率统计
         self.freq_stats = FrequencyStats(
             node_name='lidar_costmap_node',
@@ -152,18 +151,30 @@ class LidarCostmapNode(Node):
             warn_threshold=0.8,
             log_interval=5.0
         )
-
+    def _sec_to_stamp(self, t: float) -> RosTime:
+        stamp = RosTime()
+        sec = int(t)
+        nanosec = int((t - sec) * 1e9)
+        stamp.sec = sec
+        stamp.nanosec = nanosec
+        return stamp
     def _init_logger(self, enabled: bool):
         """初始化文件日志系统"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            'logs',
-            f'navigation_{timestamp}'
-        )
-        os.makedirs(log_dir, exist_ok=True)
+        self.log_enabled = enabled
 
-        log_file = os.path.join(log_dir, f'lidar_costmap_node_log_{timestamp}.log')
+        # 使用传入的日志目录或创建新的
+        if self.log_dir is not None:
+            log_dir = self.log_dir
+        else:
+            ts = self.timestamp
+            log_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                'logs',
+                f'navigation_{ts}'
+            )
+            os.makedirs(log_dir, exist_ok=True)
+
+        log_file = os.path.join(log_dir, f'lidar_costmap_node_log_{self.timestamp}.log')
 
         self.logger = logging.getLogger('lidar_costmap_node')
         self.logger.setLevel(logging.INFO)
@@ -192,7 +203,7 @@ class LidarCostmapNode(Node):
             f'  射线角度间隔: {self.ray_angle_step_deg} deg',
             f'  工作频率: {self.frequency} Hz',
             f'  点云超时阈值: {self.cloud_timeout} s',
-            f'  输出耗时日志: {self.log_timing}',
+            f'  耗时日志: {"启用" if self.log_enabled else "禁用"}',
             f'  详细日志文件: {log_file}',
         ]
 
@@ -486,7 +497,7 @@ class LidarCostmapNode(Node):
         使用 LaserScan 消息类型，frame_id = 'base_link'
         """
         msg = LaserScan()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = self._sec_to_stamp(source_timestamp)
         msg.header.frame_id = 'base_link'
         
         # 设置角度范围
@@ -504,46 +515,58 @@ class LidarCostmapNode(Node):
 
     def publish_local_costmap(self, costmap: np.ndarray, source_timestamp: float):
         """
-        发布局部 costmap
+        发布局部 costmap（修复版）
         使用 OccupancyGrid 消息类型，frame_id = 'base_link'
-        
-        约定：
-        - height 对应前向 x
-        - width 对应横向 y
-        - 列方向从右(-scan_range)到左(+scan_range)
+
+        内部 costmap 定义：
+        - shape = (rows_x, cols_y)
+        - row 对应前向 x，且 row 越小表示 x 越大（越靠前）
+        - col 对应横向 y，且 col 越大表示 y 越大（越靠左）
+
+        目标 OccupancyGrid 定义：
+        - width 对应 x 方向
+        - height 对应 y 方向
+        - origin 为左下角，即 (min_x, min_y)
+        - 地图覆盖范围：
+            x: [0, scan_range)
+            y: [-scan_range, +scan_range)
+        - 因此 base_link 位于脚下那条长边的中心
         """
-        height, width = costmap.shape
-        
+        rows_x, cols_y = costmap.shape
+
         msg = OccupancyGrid()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = self._sec_to_stamp(source_timestamp)
         msg.header.frame_id = 'base_link'
-        
-        # 设置地图元数据
-        msg.info.width = width
-        msg.info.height = height
+
+        # OccupancyGrid 语义：
+        # width  -> x 方向格子数
+        # height -> y 方向格子数
         msg.info.resolution = self.costmap_resolution
-        
-        # 设置原点 (左下角为 -scan_range, -scan_range)
-        msg.info.origin.position.x = -self.scan_range
+        msg.info.width = rows_x
+        msg.info.height = cols_y
+
+        # 地图左下角坐标
+        # x 从 0 开始向前延伸
+        # y 从 -scan_range 到 +scan_range
+        msg.info.origin.position.x = 0.0
         msg.info.origin.position.y = -self.scan_range
         msg.info.origin.position.z = 0.0
         msg.info.origin.orientation.x = 0.0
         msg.info.origin.orientation.y = 0.0
         msg.info.origin.orientation.z = 0.0
         msg.info.origin.orientation.w = 1.0
-        
-        # 转换 costmap 为 occupancy grid 格式 (0-100)
-        # costmap 中 0 表示空闲，100 表示障碍（已经是正确的格式）
-        # OccupancyGrid 中 0 表示空闲，100 表示占用，-1 表示未知
-        # 直接复制值，不需要乘以 100
-        costmap_int = costmap.astype(np.int8)
-        costmap_int = np.clip(costmap_int, 0, 100)
-        
-        # 翻转 y 轴 (使 top 对应 larger x)
-        costmap_flipped = np.flip(costmap_int, axis=0)
-        
-        msg.data = costmap_flipped.flatten().tolist()
-        
+
+        # 转为 OccupancyGrid 数据格式
+        # 内部 costmap[row_x, col_y]
+        # -> OccupancyGrid[my, mx]
+        #
+        # 先 flip(axis=0) 让 x 从近到远变成从小到大，
+        # 再转置成 (y, x) 排列
+        costmap_int = np.clip(costmap.astype(np.int8), 0, 100)
+        occ_grid = np.flip(costmap_int, axis=0).T   # shape: (height_y, width_x)
+
+        msg.data = occ_grid.reshape(-1).tolist()
+
         self.local_costmap_pub.publish(msg)
 
     def update(self):
@@ -629,7 +652,7 @@ class LidarCostmapNode(Node):
 
         total_time = time.perf_counter() - cycle_start
 
-        if self.log_timing:
+        if self.log_enabled:
             log_msg = (
                 f'Update done | '
                 f'raw={len(points)} | '
@@ -647,7 +670,6 @@ class LidarCostmapNode(Node):
                 f't_total={total_time:.6f}s'
             )
             self.logger.info(log_msg)
-            self.get_logger().info(log_msg)
 
 
 def main(args=None):

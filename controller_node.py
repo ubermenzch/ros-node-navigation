@@ -41,8 +41,12 @@ class ControllerNode(Node):
     4. 发布控制指令
     """
 
-    def __init__(self):
+    def __init__(self, log_dir: str = None, timestamp: str = None):
         super().__init__('controller_node')
+
+        # 使用传入的日志目录和时间戳，或生成新的
+        self.log_dir = log_dir
+        self.timestamp = timestamp if timestamp is not None else datetime.now().strftime('%Y%m%d_%H%M%S')
 
         # 加载配置文件
         config = get_config()
@@ -61,6 +65,16 @@ class ControllerNode(Node):
         
         # 速度话题配置
         self.odom_topic = subscriptions.get('odom_topic', '/navigation/robot_odom')
+
+        # 超时配置 (秒)
+        self.path_timeout = controller_config.get('path_timeout', 0.5)
+        self.lidar_obs_timeout = controller_config.get('lidar_obs_timeout', 0.3)
+        self.odom_timeout = controller_config.get('odom_timeout', 0.2)
+
+        # 各传感器最后接收时间戳
+        self._last_path_time = None
+        self._last_obs_time = None
+        self._last_odom_time = None
 
         # 发布话题
         self.cmd_topic = publications.get('cmd_topic', '/cmd_vel')
@@ -149,11 +163,15 @@ class ControllerNode(Node):
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{timestamp}')
-        os.makedirs(log_dir, exist_ok=True)
+        # 使用传入的日志目录或创建新的
+        if self.log_dir is not None:
+            log_dir = self.log_dir
+        else:
+            ts = self.timestamp
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{ts}')
+            os.makedirs(log_dir, exist_ok=True)
 
-        log_file = os.path.join(log_dir, f'controller_node_log_{timestamp}.log')
+        log_file = os.path.join(log_dir, f'controller_node_log_{self.timestamp}.log')
 
         self.logger = logging.getLogger('controller_node')
         self.logger.setLevel(logging.INFO)
@@ -250,6 +268,7 @@ class ControllerNode(Node):
             with self.path_lock:
                 self.waypoints = waypoints
                 self.last_path_timestamp = timestamp
+                self._last_path_time = self.get_clock().now()
 
             self.logger.info(f'Received new path with {len(waypoints)} waypoints (base_link frame)')
 
@@ -271,6 +290,7 @@ class ControllerNode(Node):
             
             with self.obs_lock:
                 self.latest_obs = obs_min_distance
+                self._last_obs_time = self.get_clock().now()
                 
         except Exception as e:
             self.logger.error(f'Failed to parse obs: {e}')
@@ -289,20 +309,26 @@ class ControllerNode(Node):
             with self.velocity_lock:
                 self.velocity['v'] = v
                 self.velocity['w'] = w
+                self._last_odom_time = self.get_clock().now()
                 
         except Exception as e:
             self.logger.error(f'Failed to parse odom: {e}')
 
-    def compute_state(self) -> np.ndarray:
-        """计算状态"""
+    def compute_state(self, timeout_status: dict) -> np.ndarray:
+        """计算状态
+        
+        Args:
+            timeout_status: 包含各传感器超时状态的字典
+        """
         state_parts = []
 
         # 1. obs_min_distance
         with self.obs_lock:
-            if self.latest_obs is not None:
+            if self.latest_obs is not None and not timeout_status['lidar_obs']:
                 obs_min_distance = self.latest_obs
             else:
-                obs_min_distance = np.ones(20, dtype=np.float32)  # 默认值
+                # 超时或无数据时使用默认值
+                obs_min_distance = np.ones(20, dtype=np.float32)
 
         state_parts.append(obs_min_distance)
 
@@ -330,10 +356,15 @@ class ControllerNode(Node):
 
         state_parts.append(np.array([distance, sin_val, cos_val], dtype=np.float32))
 
-        # 3. v, w
+        # 3. v, w (里程计超时使用默认值)
         with self.velocity_lock:
-            v = self.velocity['v']
-            w = self.velocity['w']
+            if not timeout_status['odom']:
+                v = self.velocity['v']
+                w = self.velocity['w']
+            else:
+                # 超时时使用默认值
+                v = 0.0
+                w = 0.0
 
         state_parts.append(np.array([v, w], dtype=np.float32))
 
@@ -392,21 +423,61 @@ class ControllerNode(Node):
         # 更新 last_action
         self.last_action = {'v': cmd_v, 'w': cmd_w}
 
+    def _check_timeout(self) -> dict:
+        """检查各传感器数据是否超时
+        
+        Returns:
+            dict: 包含各传感器超时状态的字典 {'path': bool, 'lidar_obs': bool, 'odom': bool}
+        """
+        current_time = self.get_clock().now()
+        timeout_status = {'path': False, 'lidar_obs': False, 'odom': False}
+
+        # 检查路径超时
+        if self._last_path_time is not None:
+            elapsed = (current_time - self._last_path_time).nanoseconds / 1e9
+            if elapsed > self.path_timeout:
+                timeout_status['path'] = True
+
+        # 检查障碍物观测超时
+        if self._last_obs_time is not None:
+            elapsed = (current_time - self._last_obs_time).nanoseconds / 1e9
+            if elapsed > self.lidar_obs_timeout:
+                timeout_status['lidar_obs'] = True
+
+        # 检查里程计超时
+        if self._last_odom_time is not None:
+            elapsed = (current_time - self._last_odom_time).nanoseconds / 1e9
+            if elapsed > self.odom_timeout:
+                timeout_status['odom'] = True
+
+        return timeout_status
+
     def update(self):
         """执行一次控制循环"""
         # 记录频率统计
         self.freq_stats.tick()
 
+        # 检查各传感器数据是否超时
+        timeout_status = self._check_timeout()
+
+        # 记录超时警告
+        if timeout_status['path']:
+            self.logger.warning('Path timeout - no path received recently')
+        if timeout_status['lidar_obs']:
+            self.logger.warning('Lidar obs timeout - no obstacle data received recently')
+        if timeout_status['odom']:
+            self.logger.warning('Odom timeout - no odometry data received recently')
+
         # 检查是否有路径
         with self.path_lock:
-            # 没有路径时，空操作（等待新路径）
-            if not self.waypoints:
+            # 没有路径时或路径超时时，空操作（等待新路径）
+            if not self.waypoints or timeout_status['path']:
                 # 发布停止指令
                 self.publish_cmd(0.0, 0.0)
                 return
 
-        # 计算状态
-        state = self.compute_state()
+        # 计算状态（传入超时状态）
+        state = self.compute_state(timeout_status)
 
         # 模型推理
         model_v, model_w = self.inference(state)

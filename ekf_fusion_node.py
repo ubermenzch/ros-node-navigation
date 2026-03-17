@@ -108,8 +108,12 @@ class EKFFusionNode(Node):
     实际实现为“简化融合器”，不是标准EKF。
     """
 
-    def __init__(self):
+    def __init__(self, log_dir: str = None, timestamp: str = None):
         super().__init__('ekf_fusion_node')
+
+        # 使用传入的日志目录和时间戳，或生成新的
+        self.log_dir = log_dir
+        self.timestamp = timestamp if timestamp is not None else datetime.now().strftime('%Y%m%d_%H%M%S')
 
         # 加载配置
         config = get_config()
@@ -133,12 +137,16 @@ class EKFFusionNode(Node):
         self.odom_timeout = ekf_config.get('odom_timeout', 1.0)
         self.world_orientation_timeout = ekf_config.get('world_orientation_timeout', 0.5)
 
-        # 简化融合参数（不再使用协方差）
-        self.use_odom_world_orientation_fusion = ekf_config.get('use_odom_world_orientation_fusion', True)
-        self.gps_alpha = float(ekf_config.get('gps_alpha', 0.30))              # GPS位置校正强度 [0,1]
+        # 融合参数
+        # gps_alpha: GPS融合权重 [0,1]
+        #   - 位置: gps_alpha 控制 GPS 位置与 odom 传播的融合权重
+        #   - 朝向: gps_alpha 控制世界系朝向与 odom 角速度积分的融合权重
+        #   - 1.0 = 完全信任 GPS/世界系朝向, 0.0 = 完全信任 odom
+        self.gps_alpha = float(ekf_config.get('gps_alpha', 0.30))
         self.gps_jump_reject = float(ekf_config.get('gps_jump_reject', 5.0))   # 单次GPS跳变拒绝阈值（米）
-        self.use_direct_gps_snap = bool(ekf_config.get('use_direct_gps_snap', False))
+        self.yaw_jump_reject = float(ekf_config.get('yaw_jump_reject', 0.5))   # 单次朝向跳变拒绝阈值（弧度）
         self.log_frequency_stats = bool(ekf_config.get('log_frequency_stats', True))
+        self.log_enabled = bool(ekf_config.get('log_enabled', True))
 
         # UTM转换相关
         self.utm_zone: Optional[int] = None
@@ -165,7 +173,7 @@ class EKFFusionNode(Node):
         self.last_processed_gps_stamp: float = 0.0   # 防止同一帧GPS重复校正
 
         # 日志
-        self._init_logger()
+        self._init_logger(self.log_enabled)
 
         # 频率统计
         self._init_frequency_stats()
@@ -220,27 +228,32 @@ class EKFFusionNode(Node):
             log_interval=5.0
         )
 
-    def _init_logger(self):
+    def _init_logger(self, enabled: bool = True):
         """初始化日志系统"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            'logs',
-            f'navigation_{timestamp}'
-        )
-        os.makedirs(log_dir, exist_ok=True)
+        # 使用传入的日志目录或创建新的
+        if self.log_dir is not None:
+            log_dir = self.log_dir
+        else:
+            ts = self.timestamp
+            log_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                'logs',
+                f'navigation_{ts}'
+            )
+            os.makedirs(log_dir, exist_ok=True)
 
-        log_file = os.path.join(log_dir, f'ekf_fusion_node_log_{timestamp}.log')
+        log_file = os.path.join(log_dir, f'ekf_fusion_node_log_{self.timestamp}.log')
 
         self.logger = logging.getLogger('ekf_fusion_node')
         self.logger.setLevel(logging.INFO)
         self.logger.handlers.clear()
 
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
-        file_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+        if enabled:
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            file_handler.setLevel(logging.INFO)
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
 
         init_info = [
             'Fusion Node initialized (simplified fusion, not standard EKF)',
@@ -251,11 +264,11 @@ class EKFFusionNode(Node):
             f'  GPS 超时: {self.gps_timeout}s',
             f'  世界系朝向超时: {self.world_orientation_timeout}s',
             f'  ODOM 超时: {self.odom_timeout}s',
-            f'  使用 ODOM/世界系朝向融合: {self.use_odom_world_orientation_fusion}',
-            f'  GPS alpha: {self.gps_alpha}',
+            f'  GPS/世界系朝向融合权重 (alpha): {self.gps_alpha}',
             f'  GPS 跳变拒绝阈值: {self.gps_jump_reject} m',
-            f'  GPS 直接贴合: {self.use_direct_gps_snap}',
+            f'  朝向跳变拒绝阈值: {self.yaw_jump_reject} rad ({math.degrees(self.yaw_jump_reject):.1f} deg)',
             f'  日志文件: {log_file}',
+            f'  日志启用: {enabled}',
         ]
 
         for line in init_info:
@@ -587,24 +600,52 @@ class EKFFusionNode(Node):
 
         fusion_components = []
         gps_applied_this_cycle = False
+        alpha = max(0.0, min(1.0, self.gps_alpha))  # 统一融合权重
 
         with self.state_lock:
-            # 1) 朝向：优先直接用世界系朝向 yaw
+            # 1) 朝向融合：世界系朝向 vs odom 角速度积分
             if world_orientation_available and world_orientation_fresh:
-                self.state.yaw = normalize_angle(world_orientation_yaw)
-                self.state.vyaw = world_orientation_yaw_rate
-                fusion_components.append('ORI')
+                # 先用 odom 积分计算预测朝向
+                odom_yaw_pred = normalize_angle(self.state.yaw + odom_vyaw * dt) if (odom_available and odom_fresh) else self.state.yaw
+
+                # 计算世界系朝向与 odom 预测的跳变差值
+                yaw_err = abs(normalize_angle(world_orientation_yaw - odom_yaw_pred))
+
+                # 第一帧校正不拒绝；后续若跳变过大则拒绝
+                first_yaw_correction = (abs(self.state.yaw) < 1e-9)
+
+                if first_yaw_correction or yaw_err <= self.yaw_jump_reject:
+                    # 使用 gps_alpha 融合世界系朝向和 odom 积分
+                    if alpha >= 1.0:
+                        # 完全信任世界系朝向
+                        self.state.yaw = normalize_angle(world_orientation_yaw)
+                        self.state.vyaw = world_orientation_yaw_rate
+                    else:
+                        # 融合：alpha * 世界系朝向 + (1-alpha) * odom 积分
+                        self.state.yaw = normalize_angle(alpha * world_orientation_yaw + (1 - alpha) * odom_yaw_pred)
+                        # 角速度也做融合
+                        self.state.vyaw = alpha * world_orientation_yaw_rate + (1 - alpha) * (odom_vyaw if (odom_available and odom_fresh) else 0.0)
+                    fusion_components.append('ORI')
+                else:
+                    # 朝向跳变过大，拒绝世界系朝向，使用 odom 积分
+                    self.get_logger().warn(
+                        f'Reject yaw jump: err={math.degrees(yaw_err):.2f} deg, '
+                        f'world_ori={math.degrees(world_orientation_yaw):.1f} deg, '
+                        f'odom_pred={math.degrees(odom_yaw_pred):.1f} deg'
+                    )
+                    self.state.yaw = odom_yaw_pred
+                    self.state.vyaw = odom_vyaw if (odom_available and odom_fresh) else 0.0
+                    fusion_components.append('ODOM_YAW')
             elif odom_available and odom_fresh:
-                # 世界系朝向超时，退化为 odom 角速度积分
+                # 无世界系朝向时，用 odom 角速度积分
                 self.state.yaw = normalize_angle(self.state.yaw + odom_vyaw * dt)
                 self.state.vyaw = odom_vyaw
                 fusion_components.append('ODOM_YAW')
 
-            # 2) 使用 ODOM 速度在当前 yaw 下做短时传播
-            if self.use_odom_world_orientation_fusion and odom_available and odom_fresh:
+            # 2) 使用 ODOM 速度在当前 yaw 下做短时传播（作为预测）
+            if odom_available and odom_fresh:
                 self.state.vx = odom_vx
                 self.state.vy = odom_vy
-                self.state.vyaw = odom_vyaw
 
                 c = math.cos(self.state.yaw)
                 s = math.sin(self.state.yaw)
@@ -628,35 +669,25 @@ class EKFFusionNode(Node):
                     gps_map_x = utm_x - self.map_origin_utm['easting']
                     gps_map_y = utm_y - self.map_origin_utm['northing']
 
-                    if not self.use_odom_world_orientation_fusion:
-                        # 纯GPS模式：位置直接贴合GPS，朝向仍来自世界系朝向
-                        self.state.x = gps_map_x
-                        self.state.y = gps_map_y
+                    err = math.hypot(gps_map_x - self.state.x, gps_map_y - self.state.y)
+
+                    # 第一帧校正不拒绝；后续若跳变过大则拒绝
+                    first_gps_correction = (self.last_processed_gps_stamp == gps_stamp and abs(self.state.x) < 1e-9 and abs(self.state.y) < 1e-9)
+
+                    if first_gps_correction or err <= self.gps_jump_reject:
+                        # 使用 gps_alpha 融合 GPS 位置和 odom 传播位置
+                        # alpha=1: 完全信任 GPS, alpha=0: 完全信任 odom
+                        self.state.x = (1.0 - alpha) * self.state.x + alpha * gps_map_x
+                        self.state.y = (1.0 - alpha) * self.state.y + alpha * gps_map_y
+
                         gps_applied_this_cycle = True
                         fusion_components.append('GPS')
                     else:
-                        err = math.hypot(gps_map_x - self.state.x, gps_map_y - self.state.y)
-
-                        # 第一帧校正不拒绝；后续若跳变过大则拒绝
-                        first_gps_correction = (self.last_processed_gps_stamp == gps_stamp and abs(self.state.x) < 1e-9 and abs(self.state.y) < 1e-9)
-
-                        if first_gps_correction or err <= self.gps_jump_reject:
-                            if self.use_direct_gps_snap:
-                                self.state.x = gps_map_x
-                                self.state.y = gps_map_y
-                            else:
-                                a = max(0.0, min(1.0, self.gps_alpha))
-                                self.state.x = (1.0 - a) * self.state.x + a * gps_map_x
-                                self.state.y = (1.0 - a) * self.state.y + a * gps_map_y
-
-                            gps_applied_this_cycle = True
-                            fusion_components.append('GPS')
-                        else:
-                            self.get_logger().warn(
-                                f'Reject GPS jump: err={err:.2f} m, '
-                                f'gps_map=({gps_map_x:.2f}, {gps_map_y:.2f}), '
-                                f'state=({self.state.x:.2f}, {self.state.y:.2f})'
-                            )
+                        self.get_logger().warn(
+                            f'Reject GPS jump: err={err:.2f} m, '
+                            f'gps_map=({gps_map_x:.2f}, {gps_map_y:.2f}), '
+                            f'state=({self.state.x:.2f}, {self.state.y:.2f})'
+                        )
 
         fusion_mode = '+'.join(fusion_components) if fusion_components else 'invalid'
 

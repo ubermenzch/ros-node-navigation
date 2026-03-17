@@ -21,35 +21,22 @@ ekf_fusion_node:
 
   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
   gps_timeout: 0.9
-  odom_timeout: 0.09
+  odom_timeout: 0.2
   world_orientation_timeout: 0.5  # 世界系朝向超时时间
 
-  # GPS质量阈值
-  # GPS位置协方差阈值，用于判断GPS信号质量。协方差小于此值认为GPS信号良好，大于此值认为信号差
-  gps_position_covariance_threshold: 0.5
-  # GPS信号良好时的测量噪声（协方差小于阈值时使用）
-  gps_measurement_noise_good: 0.1
-  # GPS信号差时的测量噪声（协方差大于阈值时使用，增大噪声降低GPS权重）
-  gps_measurement_noise_bad: 10.0
-  gps_satellite_min: 6  # 最小卫星数要求，暂时弃用
-
-  # EKF参数 - 用于扩展卡尔曼滤波的预测和校正步骤
-  # 代表模型对里程计位置预测的不确定性，当融合定位不准时可适当调大该值
-  process_noise_position: 0.1
-  # 代表模型对里程计航向角预测的不确定性，当融合定位不准时可适当调大该值
-  process_noise_yaw: 0.05  
-  # 代表里程计测量的噪声
-  odom_measurement_noise: 0.1
-  # 代表世界系朝向角测量的不确定性，当融合定位不准时可适当调大该值
-  world_orientation_measurement_noise_yaw: 0.1
-
+  # 融合参数
+  # gps_alpha: GPS/世界系朝向融合权重 [0,1]
+  #   - 位置融合: 控制 GPS 位置与 odom 传播位置的融合
+  #   - 朝向融合: 控制世界系朝向与 odom 角速度积分的融合
+  #   - 1.0 = 完全信任 GPS/世界系朝向, 0.0 = 完全信任 odom
+  gps_alpha: 0.30
+  # 单次GPS跳变拒绝阈值（米），超过此值的GPS跳变将被忽略
+  gps_jump_reject: 2.5
+  # 单次朝向跳变拒绝阈值（弧度），超过此值的朝向跳变将被忽略
+  yaw_jump_reject: 0.5  # 0.5弧度约28.6度
 
   # 日志配置
-  log_frequency_stats: true
-
-  # ========== 融合模式配置 ==========
-  # 是否融合odom和世界系朝向 (true: 融合odom+世界系朝向+GPS, false: 只使用GPS)
-  use_odom_world_orientation_fusion: true
+  log_enabled: true
 
 # ============================================================
 # 规划器节点配置
@@ -70,7 +57,7 @@ planner_node:
   frequency: 5.0
 
   # 时间戳超时时间 (秒)
-  pose_timeout: 0.09 # 机器人坐标超时时间
+  pose_timeout: 0.2 # 机器人坐标超时时间
 
   # 到达判定阈值 (米)
   arrival_threshold: 3.0
@@ -99,14 +86,17 @@ lidar_costmap_node:
   # ========== 发布话题 ==========
   publications:
     obs_output_topic: "/navigation/obs_min_d"          # 障碍物距离输出话题，用于给controller节点输入模型，frame_id=base_link
-    local_costmap_topic: "/navigation/local_costmap"   # 局部costmap输出（供地图节点更新地图），frame_id=base_link
+    local_costmap_topic: "/navigation/local_costmap"   # 局部costmap输出（供地图节点更新地图）,frame_id=base_link
+
+  # 扫描范围 (米)
+  scan_range: 10.0
 
   # 高度过滤 (米)
-  min_height: -1.0             # 最低高度
+  min_height: -0.1             # 最低高度
   max_height: 1.5              # 最高高度
 
   # 稀疏化参数
-  downsampling_factor: -1        # 降采样因子，-1/0表示不降采样，>=2表示每隔n个点取1个
+  downsampling_factor: 3.0        # 降采样因子，-1/0表示不降采样，>=2表示每隔n个点取1个
 
   # 工作频率 (Hz)
   frequency: 10.0
@@ -116,6 +106,10 @@ lidar_costmap_node:
 
   # RL输入参数
   bin_num: 20                   # 前方180度的分区数量
+  ray_angle_step_deg: 1.0       # 射线角度间隔 (度)
+
+  # 超时参数 (秒)
+  cloud_timeout: 1.0            # 点云超时阈值
 
   # 日志配置
   log_enabled: true
@@ -173,6 +167,15 @@ map_node:
   # 工作频率 (Hz)
   frequency: 10.0
 
+  # 超时配置 (秒)
+  # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
+  map_pose_timeout: 1.0      # 机器人地图坐标超时时间
+  local_costmap_timeout: 0.5 # 局部costmap超时时间
+
+  # 地图扩展参数
+  square_size: 10.0       # 地图扩展边界大小 (米)
+  road_width: 1.0         # 道路宽度 (米)
+
   # 日志配置
   log_enabled: true
 
@@ -189,6 +192,12 @@ controller_node:
   # ========== 发布话题 ==========
   publications:
     cmd_topic: "/cmd_vel"                # 控制指令
+
+  # 超时配置 (秒)
+  # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
+  path_timeout: 0.5          # 路径超时时间
+  lidar_obs_timeout: 0.3     # 障碍物观测超时时间
+  odom_timeout: 0.2           # 里程计超时时间
 
   # 模型配置
   model_path: "models/SAC_actor.pth"  # PyTorch 模型路径
@@ -239,9 +248,6 @@ controller_node:
 common:
   # 地图分辨率 (米/格) - map_node 和 lidar_costmap_node 共用
   resolution: 0.05
-
-  # 日志目录
-  log_dir: "logs"
 
   # ============================================================
   # 测试模式配置

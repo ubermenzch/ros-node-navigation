@@ -5,9 +5,11 @@
 """
 
 import signal
+import os
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
+from datetime import datetime
 
 from config_loader import get_config
 
@@ -19,6 +21,19 @@ class Nav2GPSNode(Node):
         super().__init__('navigation_system')
 
         self.get_logger().info('Navigation System started')
+
+        # 生成统一的启动时间戳
+        self.start_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.get_logger().info(f'Navigation session timestamp: {self.start_timestamp}')
+
+        # 创建统一的日志文件夹
+        self.log_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'logs',
+            f'navigation_{self.start_timestamp}'
+        )
+        os.makedirs(self.log_dir, exist_ok=True)
+        self.get_logger().info(f'Log directory: {self.log_dir}')
 
         # 启动各个节点
         self.start_nodes()
@@ -40,34 +55,28 @@ class Nav2GPSNode(Node):
         # 6. 发布 /navigation/map_pose
         self.get_logger().info('Starting ekf_fusion_node...')
         from ekf_fusion_node import EKFFusionNode
-        self.ekf_fusion_node = EKFFusionNode()
-        self.get_logger().info('ekf_fusion_node initialized')
+        self.ekf_fusion_node = EKFFusionNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
         self.get_logger().info('Starting map_node...')
         from map_node import MapNode
-        self.map_node = MapNode()
-        self.get_logger().info('map_node initialized')
+        self.map_node = MapNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
         self.get_logger().info('Starting lidar_costmap_node...')
         from lidar_costmap_node import LidarCostmapNode
-        self.lidar_costmap_node = LidarCostmapNode()
-        self.get_logger().info('lidar_costmap_node initialized')
+        self.lidar_costmap_node = LidarCostmapNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
         # self.get_logger().info('Starting lidar_360_fusion_node...')
         # from lidar_360_fusion_node import Lidar360FusionNode
         # self.lidar_360_fusion_node = Lidar360FusionNode()
-        # self.get_logger().info('lidar_360_fusion_node initialized')
 
         self.get_logger().info('Starting planner_node...')
         from planner_node import PlannerNode
-        self.planner_node = PlannerNode()
-        self.get_logger().info('planner_node initialized')
+        self.planner_node = PlannerNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
         if not is_test_mode:
             self.get_logger().info('Starting controller_node...')
             from controller_node import ControllerNode
-            self.controller_node = ControllerNode()
-            self.get_logger().info('controller_node initialized')
+            self.controller_node = ControllerNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
         self.get_logger().info('All nodes started successfully!')
 

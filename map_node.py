@@ -61,8 +61,12 @@ class MapNode(Node):
     5. 发布地图供 rviz2 可视化和其他节点使用
     """
 
-    def __init__(self):
+    def __init__(self, log_dir: str = None, timestamp: str = None):
         super().__init__('map_node')
+
+        # 使用传入的日志目录和时间戳，或生成新的
+        self.log_dir = log_dir
+        self.timestamp = timestamp if timestamp is not None else datetime.now().strftime('%Y%m%d_%H%M%S')
 
         # 加载配置文件
         config = get_config()
@@ -75,8 +79,8 @@ class MapNode(Node):
         common_config = config.get('common', {})
         
         # 地图生成参数
-        self.square_size = planner_config.get('square_size', 20.0)
-        self.square_interval = planner_config.get('square_interval', 1.0)
+        self.square_size = map_node_config.get('square_size', 20.0)
+        self.road_width = map_node_config.get('road_width', 1.0)
         self.resolution = common_config.get('resolution', 0.05)
 
         # 话题配置
@@ -102,8 +106,12 @@ class MapNode(Node):
         # 机器人 map_pose（来自 ekf_fusion_node）
         self.latest_map_pose = None
         self.last_map_pose_time = 0.0
-        self.map_pose_timeout = 1.0  # 秒
+        self.map_pose_timeout = map_node_config.get('map_pose_timeout', 1.0)  # 从配置读取
         self.map_pose_valid = False  # map_pose 是否有效（未超时）
+
+        # 局部 costmap
+        self.last_local_costmap_time = 0.0
+        self.local_costmap_timeout = map_node_config.get('local_costmap_timeout', 0.3)  # 从配置读取
 
         # 导航 GPS 点
         self.nav_gps_points = []
@@ -202,11 +210,15 @@ class MapNode(Node):
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{timestamp}')
-        os.makedirs(log_dir, exist_ok=True)
+        # 使用传入的日志目录或创建新的
+        if self.log_dir is not None:
+            log_dir = self.log_dir
+        else:
+            ts = self.timestamp
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{ts}')
+            os.makedirs(log_dir, exist_ok=True)
 
-        log_file = os.path.join(log_dir, f'map_node_log_{timestamp}.log')
+        log_file = os.path.join(log_dir, f'map_node_log_{self.timestamp}.log')
 
         self.logger = logging.getLogger('map_node')
         self.logger.setLevel(logging.INFO)
@@ -224,7 +236,6 @@ class MapNode(Node):
         # 终端输出初始化信息（同时写入文件日志）
         init_info = [
             'Map Node initialized',
-            'Running in outdoor mode',
             f'  订阅 GPS 路径: {self.gps_path_topic}',
             f'  订阅 map_pose: {self.map_pose_topic}',
             f'  发布地图: {self.map_topic}',
@@ -496,7 +507,7 @@ class MapNode(Node):
         if len(centerline_points) < 2:
             return mask
 
-        half_interval = self.square_interval / 2.0
+        half_interval = self.road_width / 2.0
 
         for i in range(len(centerline_points) - 1):
             p1 = centerline_points[i]
@@ -724,6 +735,13 @@ class MapNode(Node):
 
     def local_costmap_callback(self, msg: OccupancyGrid):
         """局部 costmap 回调，使用 map_pose 更新地图"""
+        # 记录 local_costmap 接收时间
+        self.last_local_costmap_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+
+        # 检查 local_costmap 是否超时
+        if not self._check_local_costmap_timeout():
+            return
+
         # 检查 map_pose 是否有效（未超时）
         if not self._check_map_pose_timeout():
             return
@@ -911,6 +929,16 @@ class MapNode(Node):
             if elapsed > self.map_pose_timeout:
                 self.logger.warning(f'map_pose timeout: {elapsed:.2f}s > {self.map_pose_timeout}s')
                 self.map_pose_valid = False
+                return False
+        return True
+
+    def _check_local_costmap_timeout(self) -> bool:
+        """检查 local_costmap 是否超时"""
+        current_time = self.get_clock().now().nanoseconds / 1e9
+        if self.last_local_costmap_time > 0:
+            elapsed = current_time - self.last_local_costmap_time
+            if elapsed > self.local_costmap_timeout:
+                self.logger.warning(f'local_costmap timeout: {elapsed:.2f}s > {self.local_costmap_timeout}s')
                 return False
         return True
 

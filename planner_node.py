@@ -37,8 +37,12 @@ class PlannerNode(Node):
     合并后的规划器节点
     """
 
-    def __init__(self):
+    def __init__(self, log_dir: str = None, timestamp: str = None):
         super().__init__('planner_node')
+
+        # 使用传入的日志目录和时间戳，或生成新的
+        self.log_dir = log_dir
+        self.timestamp = timestamp if timestamp is not None else datetime.now().strftime('%Y%m%d_%H%M%S')
 
         # 加载配置
         config = get_config()
@@ -129,11 +133,15 @@ class PlannerNode(Node):
 
     def _init_logger(self, enabled: bool):
         """初始化文件日志系统"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{timestamp}')
-        os.makedirs(log_dir, exist_ok=True)
+        # 使用传入的日志目录或创建新的
+        if self.log_dir is not None:
+            log_dir = self.log_dir
+        else:
+            ts = self.timestamp
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{ts}')
+            os.makedirs(log_dir, exist_ok=True)
 
-        log_file = os.path.join(log_dir, f'planner_node_log_{timestamp}.log')
+        log_file = os.path.join(log_dir, f'planner_node_log_{self.timestamp}.log')
 
         self.logger = logging.getLogger('planner_node')
         self.logger.setLevel(logging.INFO)

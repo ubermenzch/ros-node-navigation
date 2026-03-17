@@ -11,3 +11,4 @@ utils/
 # Logs - keep directory but ignore log files
 logs/
 logs/*.log
+unitree_modules/
