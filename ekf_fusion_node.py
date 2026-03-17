@@ -34,6 +34,7 @@ from sensor_msgs.msg import NavSatFix, Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, TransformStamped, Quaternion
 from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
+from builtin_interfaces.msg import Time as RosTime
 
 # UTM 库
 try:
@@ -282,6 +283,15 @@ class EKFFusionNode(Node):
             'imu':  {'last_time': 0.0, 'count': 0, 'last_log_time': 0.0},
             'odom': {'last_time': 0.0, 'count': 0, 'last_log_time': 0.0},
         }
+
+    def _sec_to_stamp(self, t: float) -> RosTime:
+        """秒数转 ROS 时间戳"""
+        stamp = RosTime()
+        sec = int(t)
+        nanosec = int((t - sec) * 1e9)
+        stamp.sec = sec
+        stamp.nanosec = nanosec
+        return stamp
 
     def _update_frequency_stats(self, sensor_type: str):
         current_time = self.get_clock().now().nanoseconds / 1e9
@@ -718,8 +728,24 @@ class EKFFusionNode(Node):
             map_y = self.state.y
             yaw = self.state.yaw
 
+        # 根据 gps_alpha 选择时间戳：
+        # - gps_alpha = 1: 完全相信 GPS，使用 GPS 时间戳
+        # - gps_alpha < 1: 使用 odom 时间戳（因为融合了 odom 传播的数据）
+        alpha = max(0.0, min(1.0, self.gps_alpha))
+
+        with self.sensor_lock:
+            gps_stamp = self.latest_sensor_data.gps_stamp
+            odom_stamp = self.latest_sensor_data.odom_stamp
+
+        if alpha >= 1.0:
+            # 完全相信 GPS，使用 GPS 时间戳
+            pose_stamp = self._sec_to_stamp(gps_stamp) if gps_stamp > 0 else self.get_clock().now().to_msg()
+        else:
+            # 使用 odom 时间戳
+            pose_stamp = self._sec_to_stamp(odom_stamp) if odom_stamp > 0 else self.get_clock().now().to_msg()
+
         pose_msg = PoseStamped()
-        pose_msg.header.stamp = self.get_clock().now().to_msg()
+        pose_msg.header.stamp = pose_stamp
         pose_msg.header.frame_id = 'map'
 
         pose_msg.pose.position.x = map_x

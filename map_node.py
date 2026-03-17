@@ -111,6 +111,7 @@ class MapNode(Node):
 
         # 局部 costmap
         self.last_local_costmap_time = 0.0
+        self.local_costmap_timestamp = None  # 保存 local_costmap 的时间戳用于增量更新
         self.local_costmap_timeout = map_node_config.get('local_costmap_timeout', 0.3)  # 从配置读取
 
         # 导航 GPS 点
@@ -735,8 +736,9 @@ class MapNode(Node):
 
     def local_costmap_callback(self, msg: OccupancyGrid):
         """局部 costmap 回调，使用 map_pose 更新地图"""
-        # 记录 local_costmap 接收时间
+        # 记录 local_costmap 接收时间和时间戳
         self.last_local_costmap_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        self.local_costmap_timestamp = msg.header.stamp
 
         # 检查 local_costmap 是否超时
         if not self._check_local_costmap_timeout():
@@ -897,7 +899,11 @@ class MapNode(Node):
         # - OccupancyGrid：y=0 在底部，y 增加向上
         # 转换：OccupancyGrid_y = (metadata.height - 1) - internal_row
         update_msg = OccupancyGridUpdate()
-        update_msg.header.stamp = self.get_clock().now().to_msg()
+        # 使用 local_costmap 的时间戳，而不是发布时的时间戳
+        if self.local_costmap_timestamp is not None:
+            update_msg.header.stamp = self.local_costmap_timestamp
+        else:
+            update_msg.header.stamp = self.get_clock().now().to_msg()
         update_msg.header.frame_id = 'map'
         update_msg.x = min_col
         update_msg.y = (metadata.height - 1) - max_row   # 内部底部 row -> OccupancyGrid 底部 y=0
