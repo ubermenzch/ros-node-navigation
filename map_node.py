@@ -4,24 +4,18 @@
 
 负责：
 1. 室外模式：接收 anav_v3 下发的 GPS 点，根据机器狗 GPS + 路径点 GPS 生成地图
-2. 订阅 /fusion_pose 和 /rtk_imu，计算并发布 map_pose
+2. 订阅 /navigation/map_pose，计算并发布 map_pose（现在由 ekf_fusion_node 发布）
 3. 根据局部 costmap、map_pose 和朝向更新地图
 4. 计算导航点的地图坐标并发布
 5. 发布地图到 topic 供可视化和其他节点使用
 
-坐标系约定：
-X轴正方向 = 正北方，Y轴正方向 = 正东方（ENU 坐标系）
+坐标系约定（与系统设计保持一致）：
+- map坐标系：X轴正方向 = 正东方（East），Y轴正方向 = 正北方（North）
+- local_costmap frame_id: base_link
 """
 
-import rclpy
-from rclpy.node import Node
-from rclpy.executors import SingleThreadedExecutor
-from nav_msgs.msg import OccupancyGrid, Path, PoseStamped
-from map_msgs.msg import OccupancyGridUpdate
-from geometry_msgs.msg import Pose, Quaternion, TransformStamped
-from sensor_msgs.msg import Imu
-from std_msgs.msg import String
 import tf2_ros
+from tf2_ros import StaticTransformBroadcaster
 import json
 import threading
 import time
@@ -30,6 +24,25 @@ import numpy as np
 import os
 import logging
 from datetime import datetime
+from typing import Optional, Tuple
+
+import rclpy
+from rclpy.node import Node
+from rclpy.executors import SingleThreadedExecutor
+from rclpy.duration import Duration
+from nav_msgs.msg import OccupancyGrid, Path
+from map_msgs.msg import OccupancyGridUpdate
+from geometry_msgs.msg import Pose, PoseStamped, Quaternion, TransformStamped, Vector3
+from std_msgs.msg import String
+from sensor_msgs.msg import NavSatFix
+
+# UTM 库
+try:
+    import pyproj
+    HAS_PYPROJ = True
+except ImportError:
+    HAS_PYPROJ = False
+    logging.warning("pyproj not installed, UTM conversion will not work")
 
 from shared_map_storage import MapMetadata, get_shared_map
 from config_loader import get_config
@@ -58,10 +71,13 @@ class MapNode(Node):
         map_node_config = config.get('map_node', {})
         planner_config = config.get('planner_node', {})
 
+        # 获取公共配置
+        common_config = config.get('common', {})
+        
         # 地图生成参数
         self.square_size = planner_config.get('square_size', 20.0)
         self.square_interval = planner_config.get('square_interval', 1.0)
-        self.resolution = planner_config.get('resolution', 0.1)
+        self.resolution = common_config.get('resolution', 0.05)
 
         # 话题配置
         publications = map_node_config.get('publications', {})
@@ -69,30 +85,25 @@ class MapNode(Node):
 
         # 发布话题
         self.map_topic = publications.get('map_topic', '/map')
-        self.map_update_topic = publications.get('map_update_topic', '/map_update')
-        self.nav_map_points_topic = publications.get('nav_map_points_topic', '/nav_map_points')
-        self.map_pose_topic = publications.get('map_pose_topic', '/map_pose')
+        self.map_update_topic = publications.get('map_update_topic', '/navigation/map_update')
+        self.nav_map_points_topic = publications.get('nav_map_points_topic', '/navigation/nav_map_points')
+        # map_pose 现在由 ekf_fusion_node 发布
+        # self.map_pose_topic = publications.get('map_pose_topic', '/map_pose')
 
         # 订阅话题
-        self.gps_path_topic = subscriptions.get('gps_path_topic', '/gps_path')
-        self.fusion_pose_topic = subscriptions.get('fusion_pose_topic', '/fusion_pose')
-        self.rtk_imu_topic = subscriptions.get('rtk_imu_topic', '/rtk_imu')
-        self.local_costmap_topic = subscriptions.get('local_costmap_topic', '/local_costmap')
+        self.gps_path_topic = subscriptions.get('gps_path_topic', '/navigation_control')
+        self.map_pose_topic = subscriptions.get('map_pose_topic', '/navigation/map_pose')
+        self.local_costmap_topic = subscriptions.get('local_costmap_topic', '/navigation/local_costmap')
 
         # 状态锁
         self.pose_lock = threading.Lock()
         self.path_lock = threading.Lock()
 
-        # 融合定位（odom坐标系）
-        self.latest_fusion_pose = None
-
-        # RTK IMU 朝向（绝对方向：朝东0度，朝北90度）
-        self.latest_imu_yaw = None
-        self.last_imu_time = 0.0
-        self.imu_timeout = 1.0  # 秒
-
-        # 计算出的 map_pose
+        # 机器人 map_pose（来自 ekf_fusion_node）
         self.latest_map_pose = None
+        self.last_map_pose_time = 0.0
+        self.map_pose_timeout = 1.0  # 秒
+        self.map_pose_valid = False  # map_pose 是否有效（未超时）
 
         # 导航 GPS 点
         self.nav_gps_points = []
@@ -108,6 +119,19 @@ class MapNode(Node):
         # 地图原点 GPS (持续发布)
         self.current_map_origin_lat = None
         self.current_map_origin_lon = None
+
+        # UT M变换相关
+        self.utm_zone: Optional[int] = None
+        self.utm_transformer = None
+        self.map_origin_utm = None  # {'easting': x, 'northing': y}
+        self.map_origin_set = False
+
+        # TF 监听器
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+        # 线程锁
+        self.tf_lock = threading.Lock()
 
         # 创建发布者 - 地图
         self.map_pub = self.create_publisher(
@@ -129,21 +153,10 @@ class MapNode(Node):
             self.nav_map_points_topic,
             10
         )
-        
-        # 创建发布者 - map_pose
-        self.map_pose_pub = self.create_publisher(
-            String,
-            self.map_pose_topic,
-            10
-        )
 
-        # 创建发布者 - 地图原点GPS（供 tf_publisher 计算 map->odom TF）
-        self.map_origin_pub = self.create_publisher(
-            String,
-            '/navigation/map_origin_gps',
-            10
-        )
-        
+        # map_pose 和 map_origin_gps 现在由 ekf_fusion_node 发布
+        # 不再在 map_node 中创建这些发布者
+
         # 创建订阅者 - anav_v3 下发的 GPS 路径
         self.gps_path_sub = self.create_subscription(
             String,
@@ -151,23 +164,15 @@ class MapNode(Node):
             self.gps_path_callback,
             10
         )
-        
-        # 创建订阅者 - 融合定位（odom坐标系）
-        self.fusion_pose_sub = self.create_subscription(
-            String,
-            self.fusion_pose_topic,
-            self.fusion_pose_callback,
+
+        # 创建订阅者 - 机器人 map_pose（来自 ekf_fusion_node）
+        self.map_pose_sub = self.create_subscription(
+            PoseStamped,
+            self.map_pose_topic,
+            self.map_pose_callback,
             10
         )
-        
-        # 创建订阅者 - RTK IMU（绝对朝向）
-        self.rtk_imu_sub = self.create_subscription(
-            Imu,
-            self.rtk_imu_topic,
-            self.rtk_imu_callback,
-            10
-        )
-        
+
         # 创建订阅者 - 局部 costmap
         self.local_costmap_sub = self.create_subscription(
             OccupancyGrid,
@@ -221,10 +226,9 @@ class MapNode(Node):
             'Map Node initialized',
             'Running in outdoor mode',
             f'  订阅 GPS 路径: {self.gps_path_topic}',
-            f'  订阅机器人 GPS: {self.robot_gps_topic}',
-            f'  订阅融合定位: {self.fusion_pose_topic}',
+            f'  订阅 map_pose: {self.map_pose_topic}',
             f'  发布地图: {self.map_topic}',
-            f'  发布地图 pose: {self.map_pose_topic}',
+            f'  发布地图更新: {self.map_update_topic}',
             f'  分辨率: {self.resolution}m',
             f'  工作频率: {self.frequency} Hz',
         ]
@@ -233,110 +237,29 @@ class MapNode(Node):
             self.logger.info(line)  # 写入文件
             self.get_logger().info(line)  # 输出到终端
 
-    def fusion_pose_callback(self, msg: String):
+    def map_pose_callback(self, msg: PoseStamped):
         """
-        接收融合定位 /fusion_pose（odom坐标系）
-        
-        消息格式 (JSON):
-        {
-            "x": 1.0,
-            "y": 2.0,
-            "yaw": 0.5,
-            "vx": 0.1,
-            "vy": 0.2,
-            "vyaw": 0.01,
-            "timestamp": 1234567890.123,
-            "valid": true,
-            "fusion_mode": "gps"
-        }
+        接收 /navigation/map_pose（来自 ekf_fusion_node）
+
+        消息格式: PoseStamped, frame_id=map
+        包含机器人在地图坐标系下的位置和朝向
         """
-        try:
-            data = json.loads(msg.data)
-            with self.pose_lock:
-                self.latest_fusion_pose = data
-        except Exception as e:
-            self.logger.error(f'Failed to parse fusion pose: {e}')
-
-    def rtk_imu_callback(self, msg: Imu):
-        """
-        接收 RTK IMU 数据，获取绝对朝向（室外模式使用）
-
-        /rtk_imu 提供的朝向：朝北0度，朝东90度（地球尺度绝对方向）
-        注意：这个朝向与地图坐标系一致，因为地图X轴正方向=正北方
-        """
-        try:
-            # 从四元数提取 yaw
-            q = msg.orientation
-            yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
-            
-            self.latest_imu_yaw = yaw
-            self.last_imu_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        except Exception as e:
-            self.logger.error(f'Failed to parse RTK IMU: {e}')
-
-    def compute_and_publish_map_pose(self):
-        """根据定位数据计算 map_pose 并发布"""
-        # 室外模式：使用 fusion_pose + rtk_imu
-        self._compute_map_pose_outdoor()
-
-    def _compute_map_pose_outdoor(self):
-        """室外模式：根据 fusion_pose 和 rtk_imu 计算 map_pose"""
         try:
             with self.pose_lock:
-                if self.latest_fusion_pose is None:
-                    return
-                
-                fusion_pose = self.latest_fusion_pose
-                
-                # 检查融合定位是否有效
-                if not fusion_pose.get('valid', False):
-                    return
-                
-                # 检查 IMU 是否超时
-                current_time = self.get_clock().now().nanoseconds / 1e9
-                if current_time - self.last_imu_time > self.imu_timeout:
-                    self.logger.warning('IMU data timeout')
-                    return
-                
-                # 获取 odom 坐标系位置
-                odom_x = fusion_pose.get('x', 0.0)
-                odom_y = fusion_pose.get('y', 0.0)
-                
-                # 获取绝对朝向（与地图坐标系一致）
-                imu_yaw = self.latest_imu_yaw
-                
-                # 转换为地图坐标系
-                shared_map = get_shared_map()
-                if not shared_map.has_map():
-                    return
-                
-                map_x, map_y = shared_map.odom_to_map(odom_x, odom_y)
-                if map_x is None:
-                    return
-                
-                # 构建 map_pose
-                map_pose = {
-                    'x': map_x,
-                    'y': map_y,
-                    'yaw': imu_yaw,  # 直接使用 IMU 的绝对朝向
-                    'vx': fusion_pose.get('vx', 0.0),
-                    'vy': fusion_pose.get('vy', 0.0),
-                    'vyaw': fusion_pose.get('vyaw', 0.0),
-                    'timestamp': fusion_pose.get('timestamp', current_time),
+                self.latest_map_pose = {
+                    'x': msg.pose.position.x,
+                    'y': msg.pose.position.y,
+                    'yaw': math.atan2(
+                        2.0 * (msg.pose.orientation.w * msg.pose.orientation.z +
+                               msg.pose.orientation.x * msg.pose.orientation.y),
+                        1.0 - 2.0 * (msg.pose.orientation.y ** 2 + msg.pose.orientation.z ** 2)
+                    ),
                     'valid': True
                 }
-                
-                self.latest_map_pose = map_pose
-                
-                # 发布 map_pose
-                msg = String()
-                msg.data = json.dumps(map_pose)
-                self.map_pose_pub.publish(msg)
-                
-                self.logger.debug(f'Published outdoor map_pose: ({map_x:.2f}, {map_y:.2f}), yaw={math.degrees(imu_yaw):.1f}deg')
-                
+                self.last_map_pose_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+                self.map_pose_valid = True  # 收到新数据，标记为有效
         except Exception as e:
-            self.logger.error(f'Failed to compute map_pose: {e}')
+            self.logger.error(f'Failed to parse map_pose: {e}')
 
     def gps_path_callback(self, msg: String):
         """
@@ -368,11 +291,17 @@ class MapNode(Node):
             self.logger.warning('Received empty GPS path message')
             return
 
-        # 检查 fusion_pose 是否有效
+        # 检查 map_pose 是否有效
         with self.pose_lock:
-            if self.latest_fusion_pose is None or not self.latest_fusion_pose.get('valid', False):
-                self.logger.warning('No valid fusion_pose yet, cannot generate map for new path')
+            if self.latest_map_pose is None or not self.latest_map_pose.get('valid', False):
+                self.logger.warning('No valid map_pose yet, cannot generate map for new path')
                 return
+
+        # 检查 utm->map 变换是否可用
+        trans_x, trans_y, yaw = self.get_utm_to_map_transform()
+        if trans_x is None:
+            self.logger.warning('utm->map transform not available yet, cannot generate map')
+            return
 
         with self.path_lock:
             self.nav_gps_points = points
@@ -389,7 +318,9 @@ class MapNode(Node):
     def _gps_to_relative_coords(self, waypoints):
         """将 GPS 坐标转换为相对坐标（米），以第一个点为原点
 
-        坐标系：X轴正方向=正北方，Y轴正方向=正东方（ENU）
+        坐标系（与系统设计一致）：
+        - X轴正方向 = 正东方（East，经度方向）
+        - Y轴正方向 = 正北方（North，纬度方向）
         """
         if not waypoints:
             return []
@@ -408,9 +339,9 @@ class MapNode(Node):
             delta_lon = lon - origin_lon
             delta_lat = lat - origin_lat
 
-            # X轴=北方（由纬度变化得到），Y轴=东方（由经度变化得到）
-            x = delta_lat * meters_per_degree_lat
-            y = delta_lon * meters_per_degree_lon
+            # X轴=东方（由经度变化得到），Y轴=北方（由纬度变化得到）
+            x = delta_lon * meters_per_degree_lon
+            y = delta_lat * meters_per_degree_lat
 
             map_points.append((x, y))
 
@@ -445,10 +376,120 @@ class MapNode(Node):
 
         return interpolated
 
+    def gps_to_utm(self, lat: float, lon: float) -> Tuple[Optional[float], Optional[float]]:
+        """经纬度转 UTM"""
+        if not HAS_PYPROJ:
+            self.logger.error('pyproj not installed, cannot convert GPS to UTM')
+            return (None, None)
+
+        try:
+            zone = int((lon + 180) / 6) + 1
+
+            if self.utm_transformer is None or self.utm_zone != zone:
+                proj_str = f"+proj=utm +zone={zone} +datum=WGS84"
+                if lat < 0:
+                    proj_str += " +south"
+
+                self.utm_transformer = pyproj.Transformer.from_crs(
+                    "EPSG:4326",
+                    proj_str,
+                    always_xy=True
+                )
+                self.utm_zone = zone
+                self.logger.info(f'UTM transformer initialized for zone {zone}')
+
+            utm_x, utm_y = self.utm_transformer.transform(lon, lat)
+            return (utm_x, utm_y)
+
+        except Exception as e:
+            self.logger.error(f'UTM conversion failed: {e}')
+            return (None, None)
+
+    def get_utm_to_map_transform(self) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """
+        获取 map -> utm 变换（即 map 原点在 utm 坐标系中的位置）
+
+        注意：ekf_fusion_node 发布的是 utm -> map TF，父 utm，子 map
+        所以我们要查 'utm' -> 'map' 的变换，得到 map 原点在 utm 中的位置
+
+        Returns:
+            (trans_x, trans_y, rotation) - map 原点在 utm 坐标系中的位置和旋转
+            如果变换不可用则返回 (None, None, None)
+        """
+        with self.tf_lock:
+            try:
+                # 查 'utm' -> 'map'，得到 map 原点在 utm 中的位置
+                # 这与 ekf_fusion_node 发布 utm->map 的语义一致
+                transform = self.tf_buffer.lookup_transform(
+                    'utm',
+                    'map',
+                    rclpy.time.Time(),
+                    timeout=Duration(seconds=1.0)
+                )
+
+                trans = transform.transform.translation
+                rot = transform.transform.rotation
+
+                # 从四元数获取旋转角度
+                yaw = math.atan2(
+                    2.0 * (rot.w * rot.z + rot.x * rot.y),
+                    1.0 - 2.0 * (rot.y ** 2 + rot.z ** 2)
+                )
+
+                # trans 是 map 原点在 utm 中的位置
+                return (trans.x, trans.y, yaw)
+
+            except tf2_ros.LookupException as e:
+                self.logger.warning(f'TF lookup failed (utm<-map not available yet): {e}')
+                return (None, None, None)
+            except tf2_ros.ConnectivityException as e:
+                self.logger.warning(f'TF connectivity error: {e}')
+                return (None, None, None)
+            except tf2_ros.ExtrapolationException as e:
+                self.logger.warning(f'TF extrapolation error: {e}')
+                return (None, None, None)
+            except Exception as e:
+                self.logger.error(f'Failed to get utm<-map transform: {e}')
+                return (None, None, None)
+
+    def gps_to_map_coords(self, lat: float, lon: float) -> Tuple[Optional[float], Optional[float]]:
+        """
+        将 GPS 坐标转换为 map 坐标系下的坐标
+
+        转换流程：GPS -> UTM -> map
+        - GPS -> UTM: 使用 pyproj 将经纬度转换为 UTM 坐标
+        - UTM -> map: 使用 tf2 查询 utm<-map 变换，得到 map 原点在 utm 中的位置
+
+        ekf_fusion_node 发布的是 utm -> map TF（父 utm，子 map），
+        所以我们查 'utm' -> 'map' 得到 map 原点在 utm 中的位置 (trans_x, trans_y)
+        变换公式：map_point = utm_point - map_origin_utm
+
+        Returns:
+            (x, y) - map 坐标系下的坐标，如果转换失败返回 (None, None)
+        """
+        # GPS -> UTM
+        utm_x, utm_y = self.gps_to_utm(lat, lon)
+        if utm_x is None or utm_y is None:
+            return (None, None)
+
+        # UTM -> map: 查询 'utm' -> 'map' 得到 map 原点在 utm 中的位置
+        # ekf_fusion_node 发布 utm -> map (父 utm, 子 map)，平移为 map 原点在 utm 中的坐标
+        trans_x, trans_y, yaw = self.get_utm_to_map_transform()
+        if trans_x is None:
+            return (None, None)
+
+        # 应用变换：map_point = utm_point - map_origin_utm
+        map_x = utm_x - trans_x
+        map_y = utm_y - trans_y
+
+        return (map_x, map_y)
+
     def _compute_road_mask(self, centerline_points, origin_x: float, origin_y: float, grid_size: int):
         """计算道路区域掩码
 
-        坐标系：X轴正方向=正北方，Y轴正方向=正东方（ENU）
+        坐标系（与系统设计一致）：
+        - X轴正方向 = 正东方（East）
+        - Y轴正方向 = 正北方（North）
         """
         mask = np.zeros((grid_size, grid_size), dtype=bool)
 
@@ -461,34 +502,39 @@ class MapNode(Node):
             p1 = centerline_points[i]
             p2 = centerline_points[i + 1]
 
-            dx = p2[0] - p1[0]  # 北方方向增量
-            dy = p2[1] - p1[1]  # 东方方向增量
+            dx = p2[0] - p1[0]  # 东方方向增量 (X轴)
+            dy = p2[1] - p1[1]  # 北方方向增量 (Y轴)
             dist = math.sqrt(dx * dx + dy * dy)
 
             if dist < 1e-6:
                 continue
 
-            ux = dx / dist  # 道路方向单位向量（北）
-            uy = dy / dist  # 道路方向单位向量（东）
+            ux = dx / dist  # 道路方向单位向量（东）
+            uy = dy / dist  # 道路方向单位向量（北）
 
-            # 垂直方向：东向（原来西向）
-            px = uy
-            py = -ux
+            # 垂直方向：北向（90度旋转）
+            px = -uy
+            py = ux
 
             steps = max(1, int(dist / self.resolution))
             for j in range(steps + 1):
                 t = j / steps
-                cx = p1[0] + t * dx  # 中心点 X（北）
-                cy = p1[1] + t * dy  # 中心点 Y（东）
+                cx = p1[0] + t * dx  # 中心点 X（东）
+                cy = p1[1] + t * dy  # 中心点 Y（北）
 
                 for dx_offset in [-half_interval, half_interval]:
                     for dy_offset in [-half_interval, half_interval]:
-                        wx = cx + px * dx_offset + ux * dy_offset
-                        wy = cy + py * dy_offset + uy * dy_offset
+                        # 沿道路方向(dx_offset)和垂直方向(dy_offset)扩展
+                        wx = cx + ux * dx_offset + px * dy_offset
+                        wy = cy + uy * dx_offset + py * dy_offset
 
-                        # X轴=北方→col增加，Y轴=东方→row减少
+                        # X轴=东方→col增加，Y轴=北方→row减少
                         col = int((wx - origin_x) / self.resolution)
-                        row = int((origin_y + grid_size * self.resolution - wy) / self.resolution)
+                        # 物理坐标 y（北方）到数组行号的转换：
+                        # origin_y 是地图上边界（y 最大），numpy row=0 在顶部
+                        # row = 0 对应物理 y = origin_y
+                        # row = grid_size-1 对应物理 y = origin_y - grid_size*resolution
+                        row = int((origin_y - wy) / self.resolution)
 
                         if 0 <= col < grid_size and 0 <= row < grid_size:
                             mask[row, col] = True
@@ -496,7 +542,12 @@ class MapNode(Node):
         return mask
 
     def generate_and_store_map(self):
-        """根据 导航GPS点 生成地图，地图原点为最远两点连线的中点"""
+        """根据导航 GPS 点生成地图，通过 utm->map TF 将 GPS 航点转换为 map 坐标"""
+        # 检查 map_pose 是否有效（未超时）
+        if not self._check_map_pose_timeout():
+            self.logger.warning('map_pose invalid or timeout, cannot generate map')
+            return
+
         with self.path_lock:
             if not self.nav_gps_points:
                 self.logger.warning('No navigation GPS points, cannot generate map')
@@ -504,110 +555,88 @@ class MapNode(Node):
 
         self.logger.info('Generating map from GPS path...')
 
-        # 获取当前 fusion_pose（gcj 坐标系）作为机器人当前位置
-        with self.pose_lock:
-            if self.latest_fusion_pose is not None and self.latest_fusion_pose.get('valid', False):
-                odom_origin_x = self.latest_fusion_pose.get('x', 0.0)
-                odom_origin_y = self.latest_fusion_pose.get('y', 0.0)
-                
-                # 将 fusion_pose（gcj 坐标）作为机器人 GPS 点加入计算
-                robot_gps_point = {
-                    'latitude': odom_origin_x,  # fusion_pose x = gcj 纬度方向
-                    'longitude': odom_origin_y  # fusion_pose y = gcj 经度方向
-                }
-            else:
-                odom_origin_x = 0.0
-                odom_origin_y = 0.0
-                robot_gps_point = None
-                self.logger.warning('No valid fusion_pose, using (0, 0) as odom origin')
-
-        # 找到最远两点（包括机器人当前位置 + 所有航点）
-        all_gps_points = self.nav_gps_points.copy()
-        
-        # 将机器人 GPS 点加入（fusion_pose）
-        if robot_gps_point is not None:
-            all_gps_points.insert(0, robot_gps_point)
-        
-        if len(all_gps_points) < 2:
-            self.logger.warning('Need at least 2 GPS points to generate map')
+        # 检查 utm<-map 变换是否可用
+        trans_x, trans_y, yaw = self.get_utm_to_map_transform()
+        if trans_x is None:
+            self.logger.warning('utm<-map transform not available yet, cannot generate map')
             return
-        
-        # 转换为相对坐标
-        map_points = self._gps_to_relative_coords(all_gps_points)
-        
-        # 找最远两点
-        max_dist = 0.0
-        farthest_pair = (0, 1)
-        for i in range(len(map_points)):
-            for j in range(i + 1, len(map_points)):
-                p1 = map_points[i]
-                p2 = map_points[j]
-                dist = math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
-                if dist > max_dist:
-                    max_dist = dist
-                    farthest_pair = (i, j)
-        
-        # 最远两点连线的中点作为地图原点
-        p1 = map_points[farthest_pair[0]]
-        p2 = map_points[farthest_pair[1]]
-        map_center_x = (p1[0] + p2[0]) / 2.0
-        map_center_y = (p1[1] + p2[1]) / 2.0
-        
-        self.logger.info(f'Farthest points: {farthest_pair}')
-        self.logger.info(f'  Point 1: ({p1[0]:.2f}, {p1[1]:.2f})')
-        self.logger.info(f'  Point 2: ({p2[0]:.2f}, {p2[1]:.2f})')
-        self.logger.info(f'Map center: ({map_center_x:.2f}, {map_center_y:.2f})')
 
-        # 计算地图范围（以中点为中心）
-        max_x_distance = 0.0
-        max_y_distance = 0.0
+        self.logger.info(f'utm->map transform: translation=({trans_x:.2f}, {trans_y:.2f}), yaw={math.degrees(yaw):.1f} deg')
 
-        for i in range(len(map_points)):
-            p = map_points[i]
-            x_dist = abs(p[0] - map_center_x)
-            y_dist = abs(p[1] - map_center_y)
+        # 将所有航点从 GPS 转换为 map 坐标
+        map_points = []
+        for wp in self.nav_gps_points:
+            lat = float(wp['latitude'])
+            lon = float(wp['longitude'])
+            map_x, map_y = self.gps_to_map_coords(lat, lon)
+            if map_x is None:
+                self.logger.warning(f'Failed to convert GPS ({lat}, {lon}) to map coordinates')
+                continue
+            map_points.append((map_x, map_y))
 
-            if x_dist > max_x_distance:
-                max_x_distance = x_dist
+        if not map_points:
+            self.logger.error('No valid map points after conversion')
+            return
 
-            if y_dist > max_y_distance:
-                max_y_distance = y_dist
+        self.logger.info(f'Converted {len(map_points)} GPS points to map coordinates')
+
+        # 获取当前 map_pose（机器人在 map 坐标系中的位置）
+        with self.pose_lock:
+            if self.latest_map_pose is not None and self.latest_map_pose.get('valid', False):
+                robot_map_x = self.latest_map_pose.get('x', 0.0)
+                robot_map_y = self.latest_map_pose.get('y', 0.0)
+                robot_yaw = self.latest_map_pose.get('yaw', 0.0)
+                self.logger.info(f'Robot map pose: ({robot_map_x:.2f}, {robot_map_y:.2f}), yaw={math.degrees(robot_yaw):.1f} deg')
+            else:
+                robot_map_x = 0.0
+                robot_map_y = 0.0
+                robot_yaw = 0.0
+                self.logger.warning('No valid map_pose, using (0, 0) as robot position')
+
+        # 将机器人位置也加入地图点，用于确定地图范围
+        all_points = map_points + [(robot_map_x, robot_map_y)]
+
+        # 计算地图范围
+        max_x = max(p[0] for p in all_points)
+        min_x = min(p[0] for p in all_points)
+        max_y = max(p[1] for p in all_points)
+        min_y = min(p[1] for p in all_points)
+
+        map_width = max_x - min_x
+        map_height = max_y - min_y
 
         padding = self.square_size
-        map_width = max_x_distance * 2 + 2 * padding
-        map_height = max_y_distance * 2 + 2 * padding
+        map_width += 2 * padding
+        map_height += 2 * padding
 
         grid_size_x = int(map_width / self.resolution)
         grid_size_y = int(map_height / self.resolution)
         grid_size = max(grid_size_x, grid_size_y)
 
         # 地图原点（左上角）
-        origin_x = map_center_x - grid_size * self.resolution / 2.0
-        origin_y = map_center_y + grid_size * self.resolution / 2.0
+        origin_x = min_x - padding
+        origin_y = max_y + padding
 
-        # 计算 map 原点相对于 odom 原点的偏移
-        self.odom_offset_x = odom_origin_x - map_center_x
-        self.odom_offset_y = odom_origin_y - map_center_y
-        self.odom_offset_yaw = 0.0  # 假设地图和 odom 坐标系的朝向一致
+        # 保存地图原点 GPS（用于逆向计算）
+        lat_origin = float(self.nav_gps_points[0]['latitude'])
+        lon_origin = float(self.nav_gps_points[0]['longitude'])
+        meters_per_degree_lat = 111320.0
+        meters_per_degree_lon = 111320.0 * math.cos(math.radians(lat_origin))
 
-        self.logger.info(f'odom origin: ({odom_origin_x:.2f}, {odom_origin_y:.2f})')
-        self.logger.info(f'map center: ({map_center_x:.2f}, {map_center_y:.2f})')
-        self.logger.info(f'map->odom offset: ({self.odom_offset_x:.2f}, {self.odom_offset_y:.2f})')
+        self.logger.info(f'Map range: width={map_width:.2f}m, height={map_height:.2f}m')
+        self.logger.info(f'Grid size: {grid_size}x{grid_size}')
+        self.logger.info(f'Origin: ({origin_x:.2f}, {origin_y:.2f})')
 
         grid = np.zeros((grid_size, grid_size), dtype=np.int8)
 
-        centerline = self._interpolate_centerline(map_points)
+        # 使用航点的地图坐标生成道路掩码
+        # 将机器人当前位置插入到航点序列前面，形成完整路径
+        full_path = [(robot_map_x, robot_map_y)] + map_points
+        centerline = self._interpolate_centerline(full_path)
         road_mask = self._compute_road_mask(centerline, origin_x, origin_y, grid_size)
 
         grid[road_mask] = 0
         grid[~road_mask] = 100
-
-        # 使用第一个 GPS 点作为原点（用于逆向计算）
-        lat_origin = float(all_gps_points[0]['latitude'])
-        lon_origin = float(all_gps_points[0]['longitude'])
-
-        meters_per_degree_lat = 111320.0
-        meters_per_degree_lon = 111320.0 * math.cos(math.radians(lat_origin))
 
         metadata = MapMetadata(
             resolution=self.resolution,
@@ -615,16 +644,16 @@ class MapNode(Node):
             height=grid_size,
             origin_x=origin_x,
             origin_y=origin_y - grid_size * self.resolution,
-            robot_x=map_center_x - origin_x,
-            robot_y=origin_y + grid_size * self.resolution - map_center_y,
+            robot_x=robot_map_x - origin_x,
+            robot_y=origin_y + grid_size * self.resolution - robot_map_y,
             gps_points=self.nav_gps_points.copy(),
             origin_lat=lat_origin,
             origin_lon=lon_origin,
             meters_per_degree_lat=meters_per_degree_lat,
             meters_per_degree_lon=meters_per_degree_lon,
-            odom_offset_x=self.odom_offset_x,
-            odom_offset_y=self.odom_offset_y,
-            odom_offset_yaw=self.odom_offset_yaw,
+            odom_offset_x=-robot_map_x,
+            odom_offset_y=-robot_map_y,
+            odom_offset_yaw=0.0,
         )
 
         shared_map = get_shared_map()
@@ -633,39 +662,20 @@ class MapNode(Node):
         # 新地图生成后需要重新发完整的 OccupancyGrid，而非增量更新
         self.first_map_published = False
 
-        # 重置 TF 发布标志，等待首次地图发布后发送 TF
-        self.map_odom_tf_published = False
-
-        # 发布地图原点GPS（供 tf_publisher 计算 map->odom TF）
-        # 地图原点 = 地图中心 = (origin_x + grid_size*resolution/2, origin_y + grid_size*resolution/2)
-        # 但我们需要发布的是地图中心对应的GPS坐标
-        # 坐标系：X轴=北方（纬度），Y轴=东方（经度）
-        map_center_lat = lat_origin + (map_center_x / meters_per_degree_lat)
-        map_center_lon = lon_origin + (map_center_y / meters_per_degree_lon)
-
-        # 保存当前地图原点GPS，供持续发布
-        self.current_map_origin_lat = map_center_lat
-        self.current_map_origin_lon = map_center_lon
-
-        map_origin_msg = String()
-        map_origin_msg.data = json.dumps({
-            'latitude': map_center_lat,
-            'longitude': map_center_lon
-        })
-        self.map_origin_pub.publish(map_origin_msg)
-
         self.logger.info(
             f'Map generated and stored: {grid_size}x{grid_size}, resolution={self.resolution}m'
         )
-        self.logger.info(f'Published map origin GPS: lat={map_center_lat:.8f}, lon={map_center_lon:.8f}')
 
     def compute_and_publish_nav_map_points(self):
-        """计算导航点的地图坐标并发布"""
-        shared_map = get_shared_map()
-        map_info = shared_map.get_map_info()
-        
-        if map_info is None:
-            self.logger.warning('No map info when computing nav map points')
+        """计算导航点的地图坐标并发布
+
+        使用与 generate_and_store_map() 相同的 GPS->UTM->map 转换逻辑，
+        确保航点坐标与地图路径一致。
+        """
+        # 检查 utm->map 变换是否可用
+        trans_x, trans_y, yaw = self.get_utm_to_map_transform()
+        if trans_x is None:
+            self.logger.warning('utm->map transform not available, cannot compute nav map points')
             return
 
         with self.path_lock:
@@ -676,8 +686,10 @@ class MapNode(Node):
             for wp in self.nav_gps_points:
                 lat = float(wp['latitude'])
                 lon = float(wp['longitude'])
-                map_x, map_y = shared_map.gps_to_map(lat, lon)
+                # 使用与 generate_and_store_map() 相同的转换逻辑
+                map_x, map_y = self.gps_to_map_coords(lat, lon)
                 if map_x is None:
+                    self.logger.warning(f'Failed to convert GPS ({lat}, {lon}) to map coordinates')
                     continue
                 nav_map_points.append({'x': map_x, 'y': map_y})
 
@@ -712,31 +724,33 @@ class MapNode(Node):
 
     def local_costmap_callback(self, msg: OccupancyGrid):
         """局部 costmap 回调，使用 map_pose 更新地图"""
+        # 检查 map_pose 是否有效（未超时）
+        if not self._check_map_pose_timeout():
+            return
+
         try:
             # 从 OccupancyGrid 获取 costmap 数据
             width = msg.info.width
             height = msg.info.height
             resolution = msg.info.resolution
-            
+
             # OccupancyGrid 数据是 0-100 的整数，-1 表示未知
-            # 转换为 0-1 的浮点数
-            costmap_data = np.array(msg.data, dtype=np.float32)
-            costmap_data = np.where(costmap_data < 0, 0, costmap_data)  # -1 -> 0
-            costmap_data = costmap_data / 100.0  # 转换为 0-1
-            
+            costmap_data = np.array(msg.data, dtype=np.int8)
+            # 注意：这里保留 0-100 范围，因为 shared_map.update_local_region() 期望 0-100
+
             # 翻转 y 轴 (恢复原始方向)
             costmap = costmap_data.reshape((height, width))
             costmap = np.flip(costmap, axis=0)
-            
+
             # 使用计算出的 map_pose
             with self.pose_lock:
                 if self.latest_map_pose is None:
                     return
                 pose = self.latest_map_pose
-                
+
                 if not pose.get('valid', False):
                     return
-                
+
                 robot_x = pose.get('x', 0.0)
                 robot_y = pose.get('y', 0.0)
                 robot_yaw = pose.get('yaw', 0.0)
@@ -767,7 +781,7 @@ class MapNode(Node):
             self.logger.debug(f'Updated map at ({robot_x:.2f}, {robot_y:.2f})')
 
     def _rotate_costmap(self, costmap: np.ndarray, angle: float) -> np.ndarray:
-        """旋转 costmap"""
+        """旋转 costmap（输入为 0-100 范围的整数）"""
         height, width = costmap.shape
 
         robot_grid_x = width // 2
@@ -778,9 +792,12 @@ class MapNode(Node):
         cos_a = math.cos(angle)
         sin_a = math.sin(angle)
 
+        # 使用 50 作为障碍物阈值（costmap 0-100 范围）
+        obstacle_threshold = 50
+
         for y in range(height):
             for x in range(width):
-                if costmap[y, x] == 100:
+                if costmap[y, x] >= obstacle_threshold:
                     dx = x - robot_grid_x
                     dy = robot_grid_y - y
 
@@ -791,7 +808,7 @@ class MapNode(Node):
                     new_y = int(robot_grid_y - new_dy)
 
                     if 0 <= new_x < width and 0 <= new_y < height:
-                        rotated[new_y, new_x] = 100
+                        rotated[new_y, new_x] = costmap[y, x]
 
         return rotated
 
@@ -816,14 +833,19 @@ class MapNode(Node):
 
             origin_pose = Pose()
             origin_pose.position.x = metadata.origin_x
-            origin_pose.position.y = metadata.origin_y - metadata.height * metadata.resolution
+            origin_pose.position.y = metadata.origin_y
             origin_pose.position.z = 0.0
             origin_pose.orientation = Quaternion(w=1.0, x=0.0, y=0.0, z=0.0)
             grid_msg.info.origin = origin_pose
 
             grid_data = np.zeros((metadata.height, metadata.width), dtype=np.int8)
+            # 坐标系转换：
+            # 内部：row=0 对应 y=origin_y（顶部），row 增加 y 减小
+            # OccupancyGrid：y=0 在底部，y 增加向上
+            # 需要翻转：OccupancyGrid[row] = 内部[height-1-row]
             for row in range(metadata.height):
                 for col in range(metadata.width):
+                    # 翻转 row：底部 row=max -> OccupancyGrid row=0
                     grid_data[row, col] = map_data[metadata.height - 1 - row, col]
 
             grid_msg.data = grid_data.flatten().tolist()
@@ -852,21 +874,20 @@ class MapNode(Node):
         height = max_row - min_row + 1
 
         # 构建更新消息
-        # OccupancyGrid 坐标系：y=0 在底部（地图原点），向上递增
-        # 内部坐标系：row=0 在顶部，向下递增
-        # 转换：OccupancyGrid row = metadata.height - 1 - internal_row
-        #
-        # update_msg.y 是更新区域左下角的 OccupancyGrid 行号
-        # 内部 max_row（最大内部行 = 最靠底部）对应最小的 OccupancyGrid 行号
+        # 坐标系说明：
+        # - 内部：origin_y 是地图上边界（y 最大），row=0 对应 y=origin_y，row 增加 y 减小
+        # - OccupancyGrid：y=0 在底部，y 增加向上
+        # 转换：OccupancyGrid_y = (metadata.height - 1) - internal_row
         update_msg = OccupancyGridUpdate()
         update_msg.header.stamp = self.get_clock().now().to_msg()
         update_msg.header.frame_id = 'map'
         update_msg.x = min_col
-        update_msg.y = metadata.height - 1 - max_row   # 内部底边 → OccupancyGrid 底行
+        update_msg.y = (metadata.height - 1) - max_row   # 内部底部 row -> OccupancyGrid 底部 y=0
         update_msg.width = width
         update_msg.height = height
 
-        # data 按 OccupancyGrid 顺序排列：从底行到顶行（内部从 max_row 到 min_row）
+        # data 按 OccupancyGrid 顺序排列：从底行到顶行
+        # 内部 row=max（底部）对应 OccupancyGrid y=0
         update_data = []
         for internal_row in range(max_row, min_row - 1, -1):
             for col in range(min_col, max_col + 1):
@@ -882,76 +903,30 @@ class MapNode(Node):
 
         self.logger.debug(f'Published map update: x={update_msg.x}, y={update_msg.y}, {width}x{height}')
 
-    def publish_map_odom_tf(self):
-        """
-        发布 map->odom 静态 TF 变换
-
-        这个变换描述了 map 原点（地图中心）相对于 odom 原点的位置关系。
-        由于 odom 原点（机器人启动位置）和 map 原点（地图中心）都是固定的，
-        因此只需要发布一次静态变换即可。
-        """
-        if self.map_odom_tf_published:
-            return
-
-        if self.tf_broadcaster is None:
-            self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
-
-        try:
-            # 创建 TransformStamped 消息
-            transform = TransformStamped()
-            transform.header.stamp = self.get_clock().now().to_msg()
-            transform.header.frame_id = 'map'    # 父坐标系
-            transform.child_frame_id = 'odom'    # 子坐标系
-
-            # 设置平移：odom 相对于 map 的位置
-            # 即：map -> (-offset_x, -offset_y) -> odom
-            transform.transform.translation.x = -self.odom_offset_x
-            transform.transform.translation.y = -self.odom_offset_y
-            transform.transform.translation.z = 0.0
-
-            # 设置旋转（假设地图和 odom 坐标系朝向一致）
-            transform.transform.rotation.x = 0.0
-            transform.transform.rotation.y = 0.0
-            transform.transform.rotation.z = 0.0
-            transform.transform.rotation.w = 1.0
-
-            # 发布变换
-            self.tf_broadcaster.sendTransform(transform)
-            self.map_odom_tf_published = True
-
-            self.logger.info(
-                f'Published map->odom TF: translation=({-self.odom_offset_x:.2f}, {-self.odom_offset_y:.2f}, 0.0), '
-                f'rotation=(0, 0, 0, 1)'
-            )
-
-        except Exception as e:
-            self.logger.error(f'Failed to publish map->odom TF: {e}')
+    def _check_map_pose_timeout(self) -> bool:
+        """检查 map_pose 是否超时，并更新有效状态标志"""
+        current_time = self.get_clock().now().nanoseconds / 1e9
+        if self.last_map_pose_time > 0:
+            elapsed = current_time - self.last_map_pose_time
+            if elapsed > self.map_pose_timeout:
+                self.logger.warning(f'map_pose timeout: {elapsed:.2f}s > {self.map_pose_timeout}s')
+                self.map_pose_valid = False
+                return False
+        return True
 
     def update(self):
         """执行一次更新"""
         # 记录频率统计
         self.freq_stats.tick()
 
-        # 计算并发布 map_pose
-        self.compute_and_publish_map_pose()
+        # 检查 map_pose 是否有效（未超时）
+        pose_valid = self._check_map_pose_timeout()
 
-        # 发布地图
-        self.publish_map()
-
-        # 持续发布地图原点GPS（供 tf_publisher 计算 map->odom TF）
-        self._publish_map_origin_gps()
-
-    def _publish_map_origin_gps(self):
-        """持续发布地图原点GPS"""
-        if self.current_map_origin_lat is None or self.current_map_origin_lon is None:
-            return
-
-        map_origin_msg = String()
-        map_origin_msg.data = json.dumps({
-            'latitude': self.current_map_origin_lat,
-            'longitude': self.current_map_origin_lon
-        })
-        self.map_origin_pub.publish(map_origin_msg)
+        # 只有在 map_pose 有效时才发布地图
+        # 注意：map->odom TF 现在由 ekf_fusion_node 统一发布
+        if pose_valid:
+            # 发布地图
+            self.publish_map()
 
 
 def main(args=None):
@@ -959,9 +934,7 @@ def main(args=None):
 
     node = MapNode()
 
-    # 创建定时器
-    period = 1.0 / node.frequency
-    timer = node.create_timer(period, node.update)
+    # 注意：定时器已在 MapNode.__init__ 中创建，这里不再重复创建
 
     executor = SingleThreadedExecutor()
     executor.add_node(node)

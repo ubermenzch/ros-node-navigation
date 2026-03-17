@@ -16,7 +16,8 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from nav_msgs.msg import Path, PoseStamped
+from nav_msgs.msg import Path, Odometry
+from geometry_msgs.msg import Pose, PoseStamped
 import json
 import threading
 import math
@@ -83,9 +84,9 @@ class PlannerNode(Node):
         self.pose_lock = threading.Lock()
 
         # ------ 订阅者 ------
-        # EKF 融合位姿
+        # EKF 融合位姿 (PoseStamped)
         self.pose_sub = self.create_subscription(
-            String,
+            PoseStamped,
             self.robot_pose_topic,
             self.pose_callback,
             10
@@ -163,28 +164,22 @@ class PlannerNode(Node):
 
     # ==================== 订阅回调 ====================
 
-    def pose_callback(self, msg: String):
+    def pose_callback(self, msg: PoseStamped):
         """接收 EKF 输出的机器人地图位姿"""
         try:
-            data = json.loads(msg.data)
             with self.pose_lock:
-                if data.get('valid', False):
-                    self.robot_pose = {
-                        'x': data.get('x', 0.0),
-                        'y': data.get('y', 0.0),
-                        'yaw': data.get('yaw', 0.0),
-                        'timestamp': data.get('timestamp', 0.0),
-                        'valid': True
-                    }
-                else:
-                    # 标记为无效
-                    self.robot_pose = {
-                        'x': data.get('x', 0.0),
-                        'y': data.get('y', 0.0),
-                        'yaw': data.get('yaw', 0.0),
-                        'timestamp': data.get('timestamp', 0.0),
-                        'valid': False
-                    }
+                # 从 PoseStamped 提取位置和朝向
+                self.robot_pose = {
+                    'x': msg.pose.position.x,
+                    'y': msg.pose.position.y,
+                    'yaw': math.atan2(
+                        2.0 * (msg.pose.orientation.w * msg.pose.orientation.z +
+                               msg.pose.orientation.x * msg.pose.orientation.y),
+                        1.0 - 2.0 * (msg.pose.orientation.y ** 2 + msg.pose.orientation.z ** 2)
+                    ),
+                    'timestamp': msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9,
+                    'valid': True
+                }
         except Exception as e:
             self.logger.error(f'Failed to parse fusion pose: {e}')
 
@@ -274,38 +269,29 @@ class PlannerNode(Node):
                 self.task_completed = True
                 return
 
-            # 在未到达的导航点中寻找离机器人最近的点
-            nearest_idx = None
-            nearest_dist = None
-            for idx in range(self.unreached_index, len(self.nav_map_points)):
-                point = self.nav_map_points[idx]
-                # 支持字典格式 {'x': x, 'y': y} 和元组格式 (x, y)
-                gx = point['x'] if isinstance(point, dict) else point[0]
-                gy = point['y'] if isinstance(point, dict) else point[1]
-                dx = gx - robot_x
-                dy = gy - robot_y
-                dist = math.hypot(dx, dy)
-                if nearest_dist is None or dist < nearest_dist:
-                    nearest_dist = dist
-                    nearest_idx = idx
+            # 只检查当前指针指向的点是否到达
+            # 不再在所有未到达点中寻找最近点
+            current_point = self.nav_map_points[self.unreached_index]
+            gx = current_point['x'] if isinstance(current_point, dict) else current_point[0]
+            gy = current_point['y'] if isinstance(current_point, dict) else current_point[1]
+            dx = gx - robot_x
+            dy = gy - robot_y
+            dist_to_current = math.hypot(dx, dy)
 
-            if nearest_idx is None:
-                return
-
-            # 到达判定
-            if nearest_dist is not None and nearest_dist <= self.arrival_threshold:
+            # 到达判定：只检查当前指针指向的点
+            if dist_to_current <= self.arrival_threshold:
                 self.logger.info(
-                    f'Navigation point {nearest_idx} reached (dist={nearest_dist:.3f}m), '
+                    f'Navigation point {self.unreached_index} reached (dist={dist_to_current:.3f}m), '
                     f'threshold={self.arrival_threshold:.3f}m'
                 )
-                # 如果是最后一个导航点，任务完成，本周期直接退出
-                if nearest_idx == len(self.nav_map_points) - 1:
+                # 如果是最后一个导航点，任务完成
+                if self.unreached_index == len(self.nav_map_points) - 1:
                     self.task_completed = True
                     return
-                # 否则将未到达指针移动到该点之后的一个点，继续以新目标做规划
-                self.unreached_index = nearest_idx + 1
+                # 否则将未到达指针移动到下一个点
+                self.unreached_index += 1
 
-            # 以未到达指针指向的导航地图坐标作为终点
+            # 再次检查指针是否有效
             if self.unreached_index >= len(self.nav_map_points):
                 self.task_completed = True
                 return
@@ -352,7 +338,6 @@ class PlannerNode(Node):
 
         # 稀疏化（不包含起点，包含终点）
         # 根据地图分辨率将距离转换为格子数
-        resolution = self.map_info['resolution'] if self.map_info else 0.1
         max_cells = int(self.max_distance_between / resolution) if resolution > 0 else 5
         sparse_path = self.sparsify_path(
             path[1:],  # 去掉起点
@@ -452,52 +437,86 @@ class PlannerNode(Node):
         """
         路径稀疏化
 
-        保证任意相邻两个保留坐标之间的格子数 <= max_cells，
-        并始终保留终点。
+        从路径的起点开始（起点为第一个点），数 x/0.1 个点作为第二个点，
+        然后从第二个点开始同理数 x/0.1 个点，最终得到第三个点，以此类推，
+        直到数到终点停下来，终点作为稀疏化后的最后一个点。
+
+        换言之：从第二个点开始，每隔 max_cells 个点取一个点，终点必须保留。
+        例如：max_cells = 10（对应1米，分辨率0.1m），则保留第1、11、21...个点，以及终点。
+
+        Args:
+            path: 路径点列表（网格坐标），不包含起点
+            max_cells: 每隔多少个格子取一个点
+
+        Returns:
+            稀疏化后的路径点列表
         """
         if len(path) <= 1:
             return path
 
-        sparse = [path[0]]
+        sparse = []
 
-        for i in range(1, len(path)):
-            curr = path[i]
-            last_kept = sparse[-1]
+        # 从第二个点开始（index=1），每隔 max_cells 个点取一个
+        # 起点已经在 path[0]，我们从 path[0] 开始数
+        # 即保留 path[0], path[max_cells], path[2*max_cells], ... 直到终点
+        for i in range(0, len(path), max_cells):
+            sparse.append(path[i])
 
-            cells = abs(curr[0] - last_kept[0]) + abs(curr[1] - last_kept[1])
-
-            # 如果当前点距离上一个保留点太远，则保留前一个点
-            if cells > max_cells:
-                prev = path[i - 1]
-                if prev != last_kept:
-                    sparse.append(prev)
-
-        # 始终保留终点
+        # 确保终点一定被保留
         if sparse[-1] != path[-1]:
             sparse.append(path[-1])
 
         return sparse
 
     def publish_path(self, waypoints: list):
-        """发布稀疏后的路径"""
+        """将map坐标系的路径转换为base_link坐标系并发布"""
+        # 从 robot_pose 获取机器人在 map 坐标系下的位置和朝向
+        with self.pose_lock:
+            if self.robot_pose is None or not self.robot_pose.get('valid', False):
+                self.logger.warning('No valid robot pose, cannot transform path')
+                return
+            robot_x = self.robot_pose['x']
+            robot_y = self.robot_pose['y']
+            robot_yaw = self.robot_pose['yaw']
+
+        # 计算旋转矩阵（从 map 到 base_link）
+        # 机器人朝向 robot_yaw 表示 base_link 相对于 map 的旋转
+        cos_yaw = math.cos(robot_yaw)
+        sin_yaw = math.sin(robot_yaw)
+
         msg = Path()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'map'
-        
+        msg.header.frame_id = 'base_link'
+
         for wp in waypoints:
+            # map坐标系下的点
+            map_x = wp['x']
+            map_y = wp['y']
+
+            # 相对位置
+            dx = map_x - robot_x
+            dy = map_y - robot_y
+
+            # 转换为 base_link 坐标系（绕机器人当前朝向旋转）
+            # p_base = R^(-1) * (p_map - p_robot)
+            # R^(-1) = R^T (旋转矩阵的逆等于其转置)
+            base_x = cos_yaw * dx + sin_yaw * dy
+            base_y = -sin_yaw * dx + cos_yaw * dy
+
             pose = PoseStamped()
             pose.header.stamp = msg.header.stamp
-            pose.header.frame_id = 'map'
-            pose.pose.position.x = wp[0]
-            pose.pose.position.y = wp[1]
+            pose.header.frame_id = 'base_link'
+            pose.pose.position.x = base_x
+            pose.pose.position.y = base_y
             pose.pose.position.z = 0.0
             pose.pose.orientation.x = 0.0
             pose.pose.orientation.y = 0.0
             pose.pose.orientation.z = 0.0
             pose.pose.orientation.w = 1.0
             msg.poses.append(pose)
-        
+
         self.path_pub.publish(msg)
+        self.logger.info(f'Published path with {len(waypoints)} waypoints in base_link frame')
 
 
 def main(args=None):

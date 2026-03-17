@@ -31,18 +31,13 @@ class Nav2GPSNode(Node):
         if is_test_mode:
             self.get_logger().info('=== TEST MODE: controller_node disabled, use joystick to control ===')
 
-        self.get_logger().info('Starting odom_node...')
-        from odom_node import OdomNode
-        self.odom_node = OdomNode(config)
-        self.get_logger().info('odom_node initialized')
-
-        self.get_logger().info('Starting tf_publisher...')
-        from tf_publisher import TFPublisher
-        tf_config = config.get('tf_publisher', {})
-        urdf_path = tf_config.get('urdf_path', '/home/unitree/navigation_system/URDF/GO2_URDF/urdf/go2_description.urdf')
-        self.tf_publisher = TFPublisher(urdf_path)
-        self.get_logger().info('tf_publisher initialized')
-
+        # ekf_fusion_node 负责：
+        # 1. 接收 /utildar/robot_odom (机器狗自带里程计)
+        # 2. 接收 /rtk_fix (GPS) 和 /rtk_imu (世界系朝向)
+        # 3. 发布 utm -> map 静态 TF
+        # 4. 发布 map -> odom 静态 TF (收到首个有效 GPS 后)
+        # 5. 发布 odom -> base_link 动态 TF
+        # 6. 发布 /navigation/map_pose
         self.get_logger().info('Starting ekf_fusion_node...')
         from ekf_fusion_node import EKFFusionNode
         self.ekf_fusion_node = EKFFusionNode()
@@ -78,7 +73,7 @@ class Nav2GPSNode(Node):
 
     def destroy_all_nodes(self):
         """销毁所有子节点"""
-        for attr in ('odom_node', 'tf_publisher', 'ekf_fusion_node', 'map_node', 'lidar_costmap_node',
+        for attr in ('ekf_fusion_node', 'map_node', 'lidar_costmap_node',
                      'lidar_360_fusion_node', 'planner_node', 'controller_node'):
             node = getattr(self, attr, None)
             if node is not None:
@@ -101,8 +96,8 @@ def main(args=None):
     config = get_config()
     is_test_mode = config.get('common.test_mode', False)
 
-    executor.add_node(nav_node.odom_node)
-    executor.add_node(nav_node.tf_publisher)
+    # executor.add_node(nav_node.odom_node)
+    # executor.add_node(nav_node.tf_publisher)
     executor.add_node(nav_node.ekf_fusion_node)
     executor.add_node(nav_node.map_node)
     executor.add_node(nav_node.planner_node)

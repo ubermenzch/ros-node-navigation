@@ -3,12 +3,11 @@
 控制器节点 (controller_node)
 
 负责：
-1. 接收 planner_node 下发的路径，维护未到达指针
-2. 从 map_node 获取机器狗的地图坐标
-3. 从 lidar_costmap_node 获取障碍物观测
-4. 读取机器狗的速度信息
-5. 拼接状态并输入模型推理得到控制指令
-6. 发布控制指令到机器狗
+1. 接收 planner_node 下发的路径（base_link坐标系）
+2. 从 lidar_costmap_node 获取障碍物观测
+3. 读取机器狗的速度信息
+4. 拼接状态并输入模型推理得到控制指令
+5. 发布控制指令到机器狗
 
 使用 PyTorch 加载并运行模型
 """
@@ -18,8 +17,7 @@ from rclpy.node import Node
 from rclpy.executors import SingleThreadedExecutor
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import String, Float64MultiArray
-import json
+from std_msgs.msg import Float64MultiArray
 import threading
 import time
 import math
@@ -63,24 +61,19 @@ class ControllerNode(Node):
         
         # 速度话题配置
         self.odom_topic = subscriptions.get('odom_topic', '/navigation/robot_odom')
-        
+
         # 发布话题
         self.cmd_topic = publications.get('cmd_topic', '/cmd_vel')
 
         # 状态锁
         self.path_lock = threading.Lock()
-        self.pose_lock = threading.Lock()
         self.obs_lock = threading.Lock()
         self.velocity_lock = threading.Lock()
-        
-        # 路径数据
+
+        # 路径数据（base_link坐标系）
         self.waypoints = []  # 路径点列表
-        self.unreached_index = 0  # 未到达指针
         self.last_path_timestamp = 0.0
-        
-        # 机器狗地图坐标
-        self.robot_pose = None  # {'x': x, 'y': y, 'yaw': yaw}
-        
+
         # 障碍物观测
         self.latest_obs = None  # obs_min_distance 数组
         
@@ -93,7 +86,6 @@ class ControllerNode(Node):
         # 控制参数
         self.max_v = controller_config.get('max_v', 1.0)  # 最大线速度 m/s
         self.max_w = controller_config.get('max_w', 1.0)  # 最大角速度 rad/s
-        self.arrival_threshold = controller_config.get('arrival_threshold', 0.5)  # 到达阈值 (米)
 
         # 创建订阅者 - 路径
         self.path_sub = self.create_subscription(
@@ -108,14 +100,6 @@ class ControllerNode(Node):
             LaserScan,
             self.lidar_obs_topic,
             self.obs_callback,
-            10
-        )
-
-        # 创建订阅者 - 机器狗地图坐标
-        self.pose_sub = self.create_subscription(
-            String,
-            self.map_pose_topic,
-            self.pose_callback,
             10
         )
 
@@ -189,7 +173,6 @@ class ControllerNode(Node):
             'Controller Node initialized',
             f'  订阅路径: {self.path_sub.topic}',
             f'  订阅激光雷达障碍物: {self.obs_sub.topic}',
-            f'  订阅地图 pose: {self.pose_sub.topic}',
             f'  订阅里程计(v,w): {self.odom_sub.topic}',
             f'  发布控制命令: {self.cmd_pub.topic}',
             f'  工作频率: {self.frequency} Hz',
@@ -248,29 +231,28 @@ class ControllerNode(Node):
             self.model = None
 
     def path_callback(self, msg: Path):
-        """接收路径"""
+        """接收路径（base_link坐标系）"""
         try:
             waypoints = []
             timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-            
+
             for pose_stamped in msg.poses:
                 wp = [
                     pose_stamped.pose.position.x,
                     pose_stamped.pose.position.y
                 ]
                 waypoints.append(wp)
-            
+
             if not waypoints:
                 return
-            
-            # 如果收到新路径，重置指针
+
+            # 收到新路径直接替换
             with self.path_lock:
                 self.waypoints = waypoints
-                self.unreached_index = 0
                 self.last_path_timestamp = timestamp
-            
-            self.logger.info(f'Received new path with {len(waypoints)} waypoints')
-            
+
+            self.logger.info(f'Received new path with {len(waypoints)} waypoints (base_link frame)')
+
         except Exception as e:
             self.logger.error(f'Failed to parse path: {e}')
 
@@ -293,21 +275,6 @@ class ControllerNode(Node):
         except Exception as e:
             self.logger.error(f'Failed to parse obs: {e}')
 
-    def pose_callback(self, msg: String):
-        """接收机器狗地图坐标"""
-        try:
-            data = json.loads(msg.data)
-            
-            with self.pose_lock:
-                self.robot_pose = {
-                    'x': data.get('x', 0.0),
-                    'y': data.get('y', 0.0),
-                    'yaw': data.get('yaw', 0.0)
-                }
-                
-        except Exception as e:
-            self.logger.error(f'Failed to parse pose: {e}')
-
     def odom_callback(self, msg: Odometry):
         """从 odom 获取线速度 v 和角速度 w"""
         try:
@@ -329,63 +296,53 @@ class ControllerNode(Node):
     def compute_state(self) -> np.ndarray:
         """计算状态"""
         state_parts = []
-        
+
         # 1. obs_min_distance
         with self.obs_lock:
             if self.latest_obs is not None:
                 obs_min_distance = self.latest_obs
             else:
                 obs_min_distance = np.ones(20, dtype=np.float32)  # 默认值
-        
+
         state_parts.append(obs_min_distance)
-        
-        # 2. distance, sin, cos
+
+        # 2. distance, sin, cos（路径点已是base_link坐标系）
         with self.path_lock:
-            with self.pose_lock:
-                if self.waypoints and self.unreached_index < len(self.waypoints) and self.robot_pose is not None:
-                    # 获取当前目标点
-                    target = self.waypoints[self.unreached_index]
-                    target_x = target[0] if isinstance(target, (list, tuple)) else target['x']
-                    target_y = target[1] if isinstance(target, (list, tuple)) else target['y']
-                    
-                    # 计算距离
-                    dx = target_x - self.robot_pose['x']
-                    dy = target_y - self.robot_pose['y']
-                    distance = math.sqrt(dx * dx + dy * dy)
-                    
-                    # 计算 sin, cos（相对于机器狗朝向）
-                    angle_to_target = math.atan2(dy, dx)
-                    angle_diff = angle_to_target - self.robot_pose['yaw']
-                    
-                    # 归一化到 [-pi, pi]
-                    while angle_diff > math.pi:
-                        angle_diff -= 2 * math.pi
-                    while angle_diff < -math.pi:
-                        angle_diff += 2 * math.pi
-                    
-                    sin_val = math.sin(angle_diff)
-                    cos_val = math.cos(angle_diff)
-                else:
-                    # 没有目标点时使用默认值
-                    distance = 0.0
-                    sin_val = 0.0
-                    cos_val = 1.0
-        
+            if self.waypoints:
+                # 第一个路径点就是相对于机器狗的位置
+                target = self.waypoints[0]
+                target_x = target[0] if isinstance(target, (list, tuple)) else target['x']
+                target_y = target[1] if isinstance(target, (list, tuple)) else target['y']
+
+                # 距离就是到第一个路径点的欧几里得距离
+                distance = math.sqrt(target_x * target_x + target_y * target_y)
+
+                # 角度：第一个路径点的方向就是相对于机器人正前方的方向
+                angle_to_target = math.atan2(target_y, target_x)
+
+                sin_val = math.sin(angle_to_target)
+                cos_val = math.cos(angle_to_target)
+            else:
+                # 没有目标点时使用默认值
+                distance = 0.0
+                sin_val = 0.0
+                cos_val = 1.0
+
         state_parts.append(np.array([distance, sin_val, cos_val], dtype=np.float32))
-        
+
         # 3. v, w
         with self.velocity_lock:
             v = self.velocity['v']
             w = self.velocity['w']
-        
+
         state_parts.append(np.array([v, w], dtype=np.float32))
-        
+
         # 4. last_action
         state_parts.append(np.array([self.last_action['v'], self.last_action['w']], dtype=np.float32))
-        
+
         # 拼接所有部分
         state = np.concatenate(state_parts)
-        
+
         return state
 
     def inference(self, state: np.ndarray) -> tuple:
@@ -426,26 +383,6 @@ class ControllerNode(Node):
         
         return cmd_v, cmd_w
 
-    def check_arrival(self) -> bool:
-        """检查是否到达目标点"""
-        with self.path_lock:
-            with self.pose_lock:
-                if not self.waypoints or self.unreached_index >= len(self.waypoints):
-                    return False
-                
-                if self.robot_pose is None:
-                    return False
-                
-                target = self.waypoints[self.unreached_index]
-                target_x = target[0] if isinstance(target, (list, tuple)) else target['x']
-                target_y = target[1] if isinstance(target, (list, tuple)) else target['y']
-                
-                dx = target_x - self.robot_pose['x']
-                dy = target_y - self.robot_pose['y']
-                distance = math.sqrt(dx * dx + dy * dy)
-                
-                return distance <= self.arrival_threshold
-
     def publish_cmd(self, cmd_v: float, cmd_w: float):
         """发布控制指令"""
         msg = Float64MultiArray()
@@ -460,29 +397,23 @@ class ControllerNode(Node):
         # 记录频率统计
         self.freq_stats.tick()
 
-        # 检查是否有路径和位置
+        # 检查是否有路径
         with self.path_lock:
-            # 指针指向最后一个目标点的后一位时，空操作（等待新路径）
-            if self.unreached_index >= len(self.waypoints):
+            # 没有路径时，空操作（等待新路径）
+            if not self.waypoints:
                 # 发布停止指令
                 self.publish_cmd(0.0, 0.0)
                 return
-        
+
         # 计算状态
         state = self.compute_state()
-        
+
         # 模型推理
         model_v, model_w = self.inference(state)
-        
+
         # 映射输出
         cmd_v, cmd_w = self.map_output(model_v, model_w)
-        
-        # 检查是否到达目标点
-        if self.check_arrival():
-            with self.path_lock:
-                self.unreached_index += 1
-                self.logger.info(f'Reached waypoint {self.unreached_index - 1}, advance to {self.unreached_index}')
-        
+
         # 发布控制指令
         self.publish_cmd(cmd_v, cmd_w)
 
@@ -492,9 +423,7 @@ def main(args=None):
 
     node = ControllerNode()
 
-    # 创建定时器
-    period = 1.0 / node.frequency
-    timer = node.create_timer(period, node.update)
+    # 注意：定时器已在 ControllerNode.__init__ 中创建，这里不再重复创建
 
     executor = SingleThreadedExecutor()
     executor.add_node(node)

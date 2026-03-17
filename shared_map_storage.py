@@ -15,7 +15,9 @@ from dataclasses import dataclass
 class MapMetadata:
     """地图元数据
 
-    坐标系：X轴正方向=正北方，Y轴正方向=正东方（ENU）
+    坐标系（与系统设计一致）：
+    - X轴正方向 = 正东方（East）
+    - Y轴正方向 = 正北方（North）
     """
     resolution: float      # 分辨率 (米/格)
     width: int            # 地图宽度 (格数)
@@ -163,7 +165,9 @@ class SharedMapStorage:
         """
         GPS坐标转换为地图坐标 (米)
 
-        坐标系：X轴正方向=正北方（纬度方向），Y轴正方向=正东方（经度方向）
+        坐标系（与系统设计一致）：
+        - X轴正方向 = 正东方（East，经度方向）
+        - Y轴正方向 = 正北方（North，纬度方向）
 
         Args:
             latitude: GPS纬度
@@ -179,9 +183,9 @@ class SharedMapStorage:
             delta_lat = latitude - self._metadata.origin_lat
             delta_lon = longitude - self._metadata.origin_lon
 
-            # X轴=北方（纬度变化），Y轴=东方（经度变化）
-            x = delta_lat * self._metadata.meters_per_degree_lat
-            y = delta_lon * self._metadata.meters_per_degree_lon
+            # X轴=东方（经度变化），Y轴=北方（纬度变化）
+            x = delta_lon * self._metadata.meters_per_degree_lon
+            y = delta_lat * self._metadata.meters_per_degree_lat
 
             return x, y
 
@@ -189,11 +193,13 @@ class SharedMapStorage:
         """
         地图坐标转换为GPS坐标
 
-        坐标系：X轴正方向=正北方（纬度方向），Y轴正方向=正东方（经度方向）
+        坐标系（与系统设计一致）：
+        - X轴正方向 = 正东方（East，经度方向）
+        - Y轴正方向 = 正北方（North，纬度方向）
 
         Args:
-            x: 地图X坐标 (米) - 北方方向
-            y: 地图Y坐标 (米) - 东方方向
+            x: 地图X坐标 (米) - 东方方向
+            y: 地图Y坐标 (米) - 北方方向
 
         Returns:
             (latitude, longitude) GPS坐标
@@ -202,8 +208,8 @@ class SharedMapStorage:
             if self._metadata is None:
                 return None, None
 
-            lat = self._metadata.origin_lat + x / self._metadata.meters_per_degree_lat
-            lon = self._metadata.origin_lon + y / self._metadata.meters_per_degree_lon
+            lon = self._metadata.origin_lon + x / self._metadata.meters_per_degree_lon
+            lat = self._metadata.origin_lat + y / self._metadata.meters_per_degree_lat
 
             return lat, lon
 
@@ -288,15 +294,20 @@ class SharedMapStorage:
         """
         更新共享地图的局部区域
 
-        Args:
-            local_map: 局部地图数据 (2D numpy数组)
-            center_x: 局部地图中心在全局地图中的X坐标 (米)
-            center_y: 局部地图中心在全局地图中的Y坐标 (米)
+        参数:
+            local_map: 局部地图数据 (2D numpy 数组)
+            center_x: 局部地图中机器人在全局地图中的 X 坐标 (米)
+                     注意：这是机器人位置，对应局部图的底边中点，不是正中心
+            center_y: 局部地图中机器人在全局地图中的 Y 坐标 (米)
             local_resolution: 局部地图分辨率 (米/格)，必须与全局地图相同
             fill_value: 填充值，用于标记障碍物 (默认100)
 
-        Returns:
-            bool: 更新是否成功
+        局部地图几何约定（与 lidar_costmap_node 一致）：
+        - x: [0, scan_range) 前向
+        - y: [-scan_range, +scan_range) 横向
+        - 机器人在底边中点 (x=0, y=0)
+        - 数组：row=0 对应 x=scan_range（顶部），row=max 对应 x=0（底部，机器人位置）
+               col=0 对应 y=-scan_range（左），col=max 对应 y=+scan_range（右）
         """
         with self._data_lock:
             if not self._has_map or self._map_data is None or self._metadata is None:
@@ -309,9 +320,16 @@ class SharedMapStorage:
             # 计算局部地图的边界（以格为单位）
             local_height, local_width = local_map.shape
 
-            # 计算局部地图左上角在全局地图中的坐标（米）
-            top_left_x = center_x - local_width * local_resolution / 2
-            top_left_y = center_y + local_height * local_resolution / 2
+            # 局部地图的物理尺寸
+            local_range_x = local_height * local_resolution   # 前向范围 [0, scan_range)
+            local_range_y = local_width * local_resolution    # 横向范围 [-scan_range, scan_range)
+
+            # 机器人位置对应局部图底边中点 (x=0, y=0)
+            # 局部图左上角在全局地图中的坐标：
+            # - x: 机器人位置 - 前向范围 = center_x - local_range_x
+            # - y: 机器人位置 + 左侧范围 = center_y - (-local_range_y/2) = center_y + local_range_y/2
+            top_left_x = center_x - local_range_x
+            top_left_y = center_y + local_range_y / 2.0
 
             # 转换为全局地图的网格索引
             top_left_col = int((top_left_x - self._metadata.origin_x) / local_resolution)
@@ -328,7 +346,11 @@ class SharedMapStorage:
                 for local_col in range(local_width):
                     if local_map[local_row, local_col] == fill_value:
                         # 计算在全局地图中的位置
+                        # 局部 row=0 在顶部（最大 x），row 增加 x 减小
+                        # 全局 row = top_left_row - local_row
                         global_row = top_left_row - local_row
+                        # 局部 col=0 在左（最小 y），col 增加 y 增加
+                        # 全局 col = top_left_col + local_col
                         global_col = top_left_col + local_col
 
                         # 检查是否在全局地图范围内

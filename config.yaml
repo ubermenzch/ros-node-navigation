@@ -12,17 +12,17 @@ ekf_fusion_node:
   subscriptions:
     gps_topic: "/rtk_fix" # 用于获取gps坐标
     odom_topic: "/utlidar/robot_odom" # 用于获取里程计数据，frame_id=odom
-    imu_topic: "/imu/data" # 用于获取imu数据，frame_id=imu
+    world_orientation_topic: "/rtk_imu" # RTK 计算输出的世界系朝向话题
 
   # ========== 发布话题 ==========
   publications:
-    fusion_pose_topic: "/navigation/fusion_pose"   # 发送融合后定位,frame_id=gcj
-    gps_weight_topic: "/navigation/gps_weight" # 发送gps权重，暂时没有用到
+    map_pose_topic: "/navigation/map_pose"  # 地图坐标系定位,frame_id=map
+    # map_origin_gps 不再发布（通过 TF 变换可知）
 
   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
   gps_timeout: 0.9
   odom_timeout: 0.09
-  imu_timeout: 0.09
+  world_orientation_timeout: 0.5  # 世界系朝向超时时间
 
   # GPS质量阈值
   # GPS位置协方差阈值，用于判断GPS信号质量。协方差小于此值认为GPS信号良好，大于此值认为信号差
@@ -40,16 +40,16 @@ ekf_fusion_node:
   process_noise_yaw: 0.05  
   # 代表里程计测量的噪声
   odom_measurement_noise: 0.1
-  # 代表IMU航向角测量的不确定性，当融合定位不准时可适当调大该值
-  imu_measurement_noise_yaw: 0.1
+  # 代表世界系朝向角测量的不确定性，当融合定位不准时可适当调大该值
+  world_orientation_measurement_noise_yaw: 0.1
 
 
   # 日志配置
   log_frequency_stats: true
 
   # ========== 融合模式配置 ==========
-  # 是否融合odom和imu (true: 融合odom+imu+GPS, false: 只使用GPS)
-  use_odom_imu_fusion: true
+  # 是否融合odom和世界系朝向 (true: 融合odom+世界系朝向+GPS, false: 只使用GPS)
+  use_odom_world_orientation_fusion: true
 
 # ============================================================
 # 规划器节点配置
@@ -64,7 +64,7 @@ planner_node:
 
   # ========== 发布话题 ==========
   publications:
-    path_topic: "/navigation/planned_path" #发送规划路径。frame_id=map，消息类型为nav_msgs/Path
+    path_topic: "/navigation/planned_path" #发送规划路径。frame_id=base_link，消息类型为nav_msgs/Path
 
   # 工作频率 (Hz)
   frequency: 5.0
@@ -98,7 +98,7 @@ lidar_costmap_node:
 
   # ========== 发布话题 ==========
   publications:
-    obs_output_topic: "/navigation/obs_min_distance"          # 障碍物距离输出话题，用于给controller节点输入模型，frame_id=base_link
+    obs_output_topic: "/navigation/obs_min_d"          # 障碍物距离输出话题，用于给controller节点输入模型，frame_id=base_link
     local_costmap_topic: "/navigation/local_costmap"   # 局部costmap输出（供地图节点更新地图），frame_id=base_link
 
   # 高度过滤 (米)
@@ -112,7 +112,6 @@ lidar_costmap_node:
   frequency: 10.0
 
   # Costmap参数
-  costmap_resolution: 0.05       # 局部costmap分辨率 (米/格)
   costmap_value: 100            # 障碍物填充值
 
   # RL输入参数
@@ -121,39 +120,39 @@ lidar_costmap_node:
   # 日志配置
   log_enabled: true
 
-# ============================================================
-# Odom节点配置
-# ============================================================
-odom_node:
-  # ========== 订阅话题 ==========
-  subscriptions:
-    old_odom_topic: "/utlidar/robot_odom"   # 旧odom（机器狗开机自启动）,frame_id=odom
-    gps_topic: "/rtk_fix"                   # RTK GPS,frame_id=gcj
-    map_origin_gps_topic: "/navigation/map_origin_gps"  # 地图原点GPS（来自map_node）,frame_id=gcj
+# # ============================================================
+# # Odom节点配置
+# # ============================================================
+# odom_node:
+#   # ========== 订阅话题 ==========
+#   subscriptions:
+#     old_odom_topic: "/utlidar/robot_odom"   # 旧odom（机器狗开机自启动）,frame_id=odom
+#     gps_topic: "/rtk_fix"                   # RTK GPS,frame_id=gcj
+#     map_origin_gps_topic: "/navigation/map_origin_gps"  # 地图原点GPS（来自map_node）,frame_id=gcj
 
-  # ========== 发布话题 ==========
-  publications:
-    new_odom_topic: "/navigation/new_odom"  # 新odom（原点为main.py启动时GPS）,frame_id=odom
-    new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（供tf_publisher使用）,frame_id=gcj
+#   # ========== 发布话题 ==========
+#   publications:
+#     new_odom_topic: "/navigation/new_odom"  # 新odom（原点为main.py启动时GPS）,frame_id=odom
+#     new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（供tf_publisher使用）,frame_id=gcj
 
-  # 日志配置
-  log_enabled: true
+#   # 日志配置
+#   log_enabled: true
 
-# ============================================================
-# TF发布节点配置
-# ============================================================
-tf_publisher:
-  # URDF 文件路径
-  urdf_path: "/home/unitree/navigation_system/URDF/GO2_URDF/urdf/go2_description.urdf"
+# # ============================================================
+# # TF发布节点配置
+# # ============================================================
+# tf_publisher:
+#   # URDF 文件路径
+#   urdf_path: "/home/unitree/navigation_system/URDF/GO2_URDF/urdf/go2_description.urdf"
 
-  # 订阅话题
-  subscriptions:
-    map_origin_gps_topic: "/navigation/map_origin_gps"      # 地图原点GPS（来自map_node）,frame_id=gcj
-    new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（来自odom_node）,frame_id=gcj
-    new_odom_topic: "/navigation/new_odom"    # 新odom（来自odom_node）,frame_id=odom
+#   # 订阅话题
+#   subscriptions:
+#     map_origin_gps_topic: "/navigation/map_origin_gps"      # 地图原点GPS（来自map_node）,frame_id=gcj
+#     new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（来自odom_node）,frame_id=gcj
+#     new_odom_topic: "/navigation/new_odom"    # 新odom（来自odom_node）,frame_id=odom
 
-  # 日志配置
-  log_enabled: true
+#   # 日志配置
+#   log_enabled: true
 
 # ============================================================
 # 地图节点配置
@@ -162,17 +161,14 @@ map_node:
   # ========== 订阅话题 ==========
   subscriptions:
     gps_path_topic: "/navigation_control"              # 下发的 GPS 导航路径,frame_id=gcj
-    fusion_pose_topic: "/navigation/fusion_pose"          # 融合定位,frame_id=gcj
-    rtk_imu_topic: "/rtk_imu"                # RTK IMU,frame_id=gcj
-    local_costmap_topic: "/navigation/local_costmap"      # 接收局部costmap,frame_id=base_link
+    map_pose_topic: "/navigation/map_pose"             # 机器人地图坐标（来自 ekf_fusion_node）,frame_id=map
+    local_costmap_topic: "/navigation/local_costmap"   # 接收局部costmap,frame_id=base_link
 
   # ========== 发布话题 ==========
   publications:
-    map_topic: "/map"                         # 全局地图（供rviz2可视化和其他节点使用）,frame_id=map
-    map_update_topic: "/map_update"           # 地图增量更新（OccupancyGridUpdate）,frame_id=map
-    nav_map_points_topic: "/navigation/nav_map_points"    # 导航地图坐标（供 planner_node 使用）,frame_id=map
-    map_pose_topic: "/navigation/map_pose"               # 计算出的地图坐标系定位,frame_id=map
-    map_origin_gps_topic: "/navigation/map_origin_gps"  # 地图原点GPS（供tf_publisher使用）,frame_id=gcj
+    map_topic: "/navigation/map"                                  # 全局地图（供rviz2可视化和其他节点使用）,frame_id=map
+    map_update_topic: "/navigation/map_update"         # 地图增量更新（OccupancyGridUpdate）,frame_id=map
+    nav_map_points_topic: "/navigation/nav_map_points" # 导航地图坐标（供 planner_node 使用）,frame_id=map
 
   # 工作频率 (Hz)
   frequency: 10.0
@@ -186,10 +182,9 @@ map_node:
 controller_node:
   # ========== 订阅话题 ==========
   subscriptions:
-    path_topic: "/navigation/planned_path"           # 路径话题（来自 planner_node）,frame_id=map
-    lidar_obs_topic: "/navigation/obs_min_distance"         # 障碍物观测（来自 lidar_costmap_node）,frame_id=base_link
-    map_pose_topic: "/navigation/map_pose"           # 机器狗地图坐标（来自 map_node）,frame_id=map
-    odom_topic: "/navigation/new_odom"               # 里程计,frame_id=odom
+    path_topic: "/navigation/planned_path"           # 路径话题（来自 planner_node）,frame_id=base_link
+    lidar_obs_topic: "/navigation/obs_min_d"         # 障碍物观测（来自 lidar_costmap_node）,frame_id=base_link
+    odom_topic: "/utlidar/robot_odom"               # 里程计,frame_id=odom (机器狗自带里程计)
 
   # ========== 发布话题 ==========
   publications:
@@ -201,7 +196,6 @@ controller_node:
   # 控制参数
   max_v: 1.0                             # 最大线速度 (m/s)
   max_w: 1.0                             # 最大角速度 (rad/s)
-  arrival_threshold: 2.0                  # 到达目标点阈值 (米)
 
   # 工作频率 (Hz)
   frequency: 5.0
@@ -243,6 +237,9 @@ controller_node:
 # 通用配置
 # ============================================================
 common:
+  # 地图分辨率 (米/格) - map_node 和 lidar_costmap_node 共用
+  resolution: 0.05
+
   # 日志目录
   log_dir: "logs"
 

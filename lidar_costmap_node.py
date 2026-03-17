@@ -72,7 +72,11 @@ class LidarCostmapNode(Node):
 
         # 工作频率 (Hz)
         self.frequency = float(lidar_config.get('frequency', 10.0))
-        self.costmap_resolution = float(lidar_config.get('costmap_resolution', 0.1))
+        # 从公共配置获取分辨率
+        common_config = config.get('common', {})
+        self.costmap_resolution = float(common_config.get('resolution', 0.05))
+
+        # 其他参数
         self.costmap_value = int(lidar_config.get('costmap_value', 100))
         self.bin_num = int(lidar_config.get('bin_num', 20))
         self.ray_angle_step_deg = float(lidar_config.get('ray_angle_step_deg', 1.0))
@@ -529,9 +533,10 @@ class LidarCostmapNode(Node):
         msg.info.origin.orientation.w = 1.0
         
         # 转换 costmap 为 occupancy grid 格式 (0-100)
-        # costmap 中 0 表示空闲，1 表示障碍
-        # OccupancyGrid 中 0 表示未知，100 表示占用，-1 表示未知
-        costmap_int = (costmap * 100).astype(np.int8)
+        # costmap 中 0 表示空闲，100 表示障碍（已经是正确的格式）
+        # OccupancyGrid 中 0 表示空闲，100 表示占用，-1 表示未知
+        # 直接复制值，不需要乘以 100
+        costmap_int = costmap.astype(np.int8)
         costmap_int = np.clip(costmap_int, 0, 100)
         
         # 翻转 y 轴 (使 top 对应 larger x)
