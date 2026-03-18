@@ -81,22 +81,24 @@ planner_node:
 lidar_costmap_node:
   # ========== 订阅话题 ==========
   subscriptions:
-    scan_topic: "/livox/lidar"           # 获取激光雷达点云，frame_id=livox_frame
+    scan_topic: "/my_lidar"           # 获取激光雷达点云/livox/lidar，frame_id=livox_frame
 
   # ========== 发布话题 ==========
   publications:
     obs_output_topic: "/navigation/obs_min_d"          # 障碍物距离输出话题，用于给controller节点输入模型，frame_id=base_link
     local_costmap_topic: "/navigation/local_costmap"   # 局部costmap输出（供地图节点更新地图）,frame_id=base_link
+    voxel_cloud_topic: "/navigation/voxel_cloud"
 
   # 扫描范围 (米)
   scan_range: 10.0
 
   # 高度过滤 (米)
-  min_height: -0.4             # 最低高度
+  min_height: -0.35             # 最低高度
   max_height: 1.5              # 最高高度
 
-  # 稀疏化参数
-  downsampling_factor: 3.0        # 降采样因子，-1/0表示不降采样，>=2表示每隔n个点取1个
+  
+  voxel_size: 0.1 #体素尺寸
+  min_points_per_voxel: 1 #最小点数阈值
 
   # 工作频率 (Hz)
   frequency: 10.0
@@ -105,7 +107,7 @@ lidar_costmap_node:
   costmap_value: 100            # 障碍物填充值
 
   # RL输入参数
-  bin_num: 20                   # 前方180度的分区数量
+  bin_num: 180                   # 前方180度的分区数量
   ray_angle_step_deg: 1.0       # 射线角度间隔 (度)
 
   # 超时参数 (秒)
@@ -247,7 +249,7 @@ controller_node:
 # ============================================================
 common:
   # 地图分辨率 (米/格) - map_node 和 lidar_costmap_node 共用
-  resolution: 0.05
+  resolution: 0.1
 
   # ============================================================
   # 测试模式配置

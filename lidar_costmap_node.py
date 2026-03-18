@@ -24,7 +24,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.executors import SingleThreadedExecutor
 
-from sensor_msgs.msg import PointCloud2, LaserScan
+from sensor_msgs.msg import PointCloud2, PointField, LaserScan
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Pose, Quaternion
 from std_msgs.msg import String
@@ -66,14 +66,19 @@ class LidarCostmapNode(Node):
         # 发布话题
         self.obs_output_topic = publications.get('obs_output_topic', '/lidar_obs')
         self.local_costmap_topic = publications.get('local_costmap_topic', '/local_costmap')
+        self.voxel_cloud_topic = publications.get('voxel_cloud_topic', '/voxel_cloud')
 
         # 参数
         self.scan_range = float(lidar_config.get('scan_range', 10.0))
         self.min_height = float(lidar_config.get('min_height', 0.0))
         self.max_height = float(lidar_config.get('max_height', 2.0))
 
-        # -1 / 0 / 1 表示不降采样；>=2 表示每隔 factor 个点取 1 个
-        self.downsampling_factor = int(lidar_config.get('downsampling_factor', -1))
+        # 体素降采样参数
+        # voxel_size <= 0 表示不做体素降采样
+        self.voxel_size = float(lidar_config.get('voxel_size', 0.10))
+
+        # 每个体素内至少需要多少个点，才保留该体素
+        self.min_points_per_voxel = int(lidar_config.get('min_points_per_voxel', 1))
 
         # 工作频率 (Hz)
         self.frequency = float(lidar_config.get('frequency', 10.0))
@@ -83,8 +88,18 @@ class LidarCostmapNode(Node):
 
         # 其他参数
         self.costmap_value = int(lidar_config.get('costmap_value', 100))
-        self.bin_num = int(lidar_config.get('bin_num', 20))
+        self.bin_num = max(int(lidar_config.get('bin_num', 20)), 1)
+
+        # 配置中的射线角度间隔
         self.ray_angle_step_deg = float(lidar_config.get('ray_angle_step_deg', 1.0))
+
+        # obs_min 本身的角分辨率 = 180 / bin_num
+        self.obs_bin_step_deg = 180.0 / self.bin_num
+
+        # 实际扫描使用更细的角度
+        self.fine_scan_step_deg = min(self.obs_bin_step_deg, self.ray_angle_step_deg)
+        self.fine_scan_step_deg = max(self.fine_scan_step_deg, 1e-6)
+        self.fine_scan_step_rad = math.radians(self.fine_scan_step_deg)
 
         # 点云时间戳失效阈值（秒）
         self.cloud_timeout = float(lidar_config.get('cloud_timeout', 1.0))
@@ -92,6 +107,7 @@ class LidarCostmapNode(Node):
         # 状态：只维护最新点云（ROS 标准坐标系）
         self.latest_points = None               # numpy array, shape (N, 3)
         self.latest_cloud_stamp = None          # float seconds
+        self.latest_cloud_frame_id = None       # str
         self.scan_lock = threading.Lock()
 
         # 用于节流 warning，避免刷屏
@@ -118,23 +134,33 @@ class LidarCostmapNode(Node):
             10
         )
 
+        self.voxel_cloud_pub = self.create_publisher(
+            PointCloud2,
+            self.voxel_cloud_topic,
+            10
+        )
+
         # 初始化日志
         self._init_logger(lidar_config.get('log_enabled', True))
 
         # 节点启动时预计算射线路径（ROS 标准坐标系）
         t0 = time.perf_counter()
-        self.ray_paths = self.precompute_ray_paths(
+        self.ray_paths, self.ray_angles = self.precompute_ray_paths(
             self.scan_range,
             self.costmap_resolution,
-            self.ray_angle_step_deg
+            self.fine_scan_step_deg
         )
         t1 = time.perf_counter()
 
         self.logger.info(
-            f'Precomputed ray paths: {len(self.ray_paths)} rays, time cost: {t1 - t0:.6f} s'
+            f'Precomputed ray paths: {len(self.ray_paths)} rays, '
+            f'fine_scan_step={self.fine_scan_step_deg:.3f} deg, '
+            f'time cost: {t1 - t0:.6f} s'
         )
         self.get_logger().info(
-            f'Precomputed ray paths: {len(self.ray_paths)} rays, time cost: {t1 - t0:.6f} s'
+            f'Precomputed ray paths: {len(self.ray_paths)} rays, '
+            f'fine_scan_step={self.fine_scan_step_deg:.3f} deg, '
+            f'time cost: {t1 - t0:.6f} s'
         )
 
         # 定时器：按指定频率执行一次完整流程
@@ -193,10 +219,12 @@ class LidarCostmapNode(Node):
             f'  订阅点云: {self.pointcloud_sub.topic}',
             f'  发布 obs_min_distance: {self.obs_pub.topic}',
             f'  发布局部 costmap: {self.local_costmap_pub.topic}',
+            f'  发布体素点云: {self.voxel_cloud_pub.topic}',
             '  坐标系: ROS 标准坐标系 (x前, y左, z上)',
             f'  扫描范围: {self.scan_range} m',
             f'  高度范围: {self.min_height} m ~ {self.max_height} m',
-            f'  降采样因子: {self.downsampling_factor}',
+            f'  体素尺寸: {self.voxel_size} m',
+            f'  体素最小点数阈值: {self.min_points_per_voxel}',
             f'  costmap 分辨率: {self.costmap_resolution} m',
             f'  costmap 值: {self.costmap_value}',
             f'  bin 数量: {self.bin_num}',
@@ -264,69 +292,149 @@ class LidarCostmapNode(Node):
         if cloud_stamp <= 0.0:
             cloud_stamp = self.get_clock().now().nanoseconds / 1e9
 
+        cloud_frame_id = msg.header.frame_id if msg.header.frame_id else 'base_link'
+
         with self.scan_lock:
             self.latest_points = points
             self.latest_cloud_stamp = cloud_stamp
+            self.latest_cloud_frame_id = cloud_frame_id
+    def xyz_array_to_pointcloud2(
+        self,
+        points: np.ndarray,
+        source_timestamp: float,
+        frame_id: str
+    ) -> PointCloud2:
+        """
+        将 Nx3 的 float32 numpy 点云转换为 PointCloud2
+        """
+        msg = PointCloud2()
+        msg.header.stamp = self._sec_to_stamp(source_timestamp)
+        msg.header.frame_id = frame_id if frame_id else 'base_link'
+
+        msg.height = 1
+        msg.width = int(len(points))
+
+        msg.fields = [
+            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+        ]
+
+        msg.is_bigendian = False
+        msg.point_step = 12
+        msg.row_step = msg.point_step * msg.width
+        msg.is_dense = True
+
+        if len(points) == 0:
+            msg.data = b''
+        else:
+            points_f32 = np.asarray(points, dtype=np.float32).reshape(-1, 3)
+            msg.data = points_f32.tobytes()
+
+        return msg
+
+
+    def publish_voxel_cloud(self, points: np.ndarray, source_timestamp: float, frame_id: str):
+        """
+        发布体素降采样后的点云
+        """
+        msg = self.xyz_array_to_pointcloud2(points, source_timestamp, frame_id)
+        self.voxel_cloud_pub.publish(msg)
 
     def precompute_ray_paths(self, scan_range: float, resolution: float, angle_step_deg: float):
         """
-        预计算每条射线会经过哪些 grid cell。
-        只依赖 scan_range / resolution / angle_step_deg，节点启动时算一次即可。
+        预计算每条细射线会经过哪些 grid cell，并记录每个 cell 的“退出距离”。
+
+        返回：
+        - ray_paths: list of (grid_rows, grid_cols, cell_exit_r)
+            其中：
+            * grid_rows[k], grid_cols[k] 是该射线第 k 个经过的格子
+            * cell_exit_r[k] 是该射线在该格子内采样到的最后一个半径值
+            因此对于障碍距离 d，可用 searchsorted(cell_exit_r, d)
+            找到应从哪个格子开始向后填充
+        - ray_angles: 每条射线对应的角度（弧度）
 
         ROS 标准坐标系角度定义：
         - 前方 +x = 0°
-        - 右边 = -90°（负 y）
-        - 左边 = +90°（正 y）
+        - 右边 = -90°
+        - 左边 = +90°
         """
-        rows = int(scan_range / resolution)         # 前向 x 方向
-        cols = int(2 * scan_range / resolution)     # 横向 y 方向
+        rows = int(scan_range / resolution)
+        cols = int(2 * scan_range / resolution)
 
+        angle_step_deg = max(float(angle_step_deg), 1e-6)
         angle_step_rad = np.deg2rad(angle_step_deg)
-        angles = np.arange(-np.pi / 2, np.pi / 2 + angle_step_rad * 0.5, angle_step_rad)
+
+        angles = np.arange(
+            -np.pi / 2,
+            np.pi / 2 + angle_step_rad * 0.5,
+            angle_step_rad,
+            dtype=np.float64
+        )
 
         radial_step = resolution * 0.5
-        r_values = np.arange(0.0, scan_range + radial_step, radial_step)
+        r_values = np.arange(0.0, scan_range + radial_step, radial_step, dtype=np.float64)
 
         ray_paths = []
 
         for theta in angles:
-            # ROS 标准坐标系：
-            # x 前方，y 左侧
             x = r_values * np.cos(theta)
             y = r_values * np.sin(theta)
 
-            # 列表示横向 y：[-scan_range, +scan_range)
-            grid_col = np.floor((y + scan_range) / resolution).astype(int)
-
-            # 行表示前向 x：[0, scan_range)，x 越大越靠上
-            grid_row = rows - 1 - np.floor(x / resolution).astype(int)
+            grid_col = np.floor((y + scan_range) / resolution).astype(np.int32)
+            grid_row = rows - 1 - np.floor(x / resolution).astype(np.int32)
 
             valid = (
                 (grid_col >= 0) & (grid_col < cols) &
                 (grid_row >= 0) & (grid_row < rows)
             )
-            grid_col = grid_col[valid]
-            grid_row = grid_row[valid]
 
-            if len(grid_col) == 0:
+            if not np.any(valid):
                 ray_paths.append((
                     np.array([], dtype=np.int32),
-                    np.array([], dtype=np.int32)
+                    np.array([], dtype=np.int32),
+                    np.array([], dtype=np.float32)
                 ))
                 continue
 
-            cells = np.stack([grid_row, grid_col], axis=1)
+            valid_rows = grid_row[valid]
+            valid_cols = grid_col[valid]
+            valid_r = r_values[valid]
 
-            # 去掉重复格子，保留顺序
-            unique_cells = [cells[0]]
-            for i in range(1, len(cells)):
-                if not np.array_equal(cells[i], cells[i - 1]):
-                    unique_cells.append(cells[i])
+            unique_rows = []
+            unique_cols = []
+            cell_exit_r = []
 
-            unique_cells = np.array(unique_cells, dtype=np.int32)
-            ray_paths.append((unique_cells[:, 0], unique_cells[:, 1]))
+            cur_row = int(valid_rows[0])
+            cur_col = int(valid_cols[0])
+            last_r = float(valid_r[0])
 
-        return ray_paths
+            for i in range(1, len(valid_rows)):
+                row_i = int(valid_rows[i])
+                col_i = int(valid_cols[i])
+
+                if row_i == cur_row and col_i == cur_col:
+                    last_r = float(valid_r[i])
+                else:
+                    unique_rows.append(cur_row)
+                    unique_cols.append(cur_col)
+                    cell_exit_r.append(last_r)
+
+                    cur_row = row_i
+                    cur_col = col_i
+                    last_r = float(valid_r[i])
+
+            unique_rows.append(cur_row)
+            unique_cols.append(cur_col)
+            cell_exit_r.append(last_r)
+
+            ray_paths.append((
+                np.asarray(unique_rows, dtype=np.int32),
+                np.asarray(unique_cols, dtype=np.int32),
+                np.asarray(cell_exit_r, dtype=np.float32)
+            ))
+
+        return ray_paths, angles.astype(np.float32)
 
     def filter_height(self, points: np.ndarray) -> np.ndarray:
         """高度过滤"""
@@ -337,19 +445,55 @@ class LidarCostmapNode(Node):
 
     def downsample(self, points: np.ndarray) -> np.ndarray:
         """
-        降采样：
-        - factor = -1 / 0 / 1：不降采样
-        - factor >= 2：每隔 factor 个点取 1 个
-        """
-        factor = self.downsampling_factor
+        增强版 3D voxel grid 降采样：
+        - voxel_size <= 0：不降采样
+        - 按 (x, y, z) 将点划分到体素中
+        - 只有体素内点数 >= min_points_per_voxel 时才保留
+        - 每个保留体素输出 1 个代表点（质心）
 
-        if factor == -1 or factor == 0 or factor == 1:
-            return points
+        说明：
+        - 这是空间均匀降采样，不依赖原始点顺序
+        - min_points_per_voxel 可用于过滤孤立噪声点
+        """
         if len(points) == 0:
             return points
 
-        indices = np.arange(0, len(points), factor)
-        return points[indices]
+        voxel_size = self.voxel_size
+        min_points = max(int(self.min_points_per_voxel), 1)
+
+        # voxel_size <= 0 时视为关闭体素降采样
+        if voxel_size <= 0.0:
+            return points
+
+        # 计算每个点所在的体素索引
+        # floor 可正确处理负坐标
+        voxel_indices = np.floor(points / voxel_size).astype(np.int32)
+
+        # 找到唯一体素，并统计每个点属于哪个体素、每个体素有多少点
+        _, inverse, counts = np.unique(
+            voxel_indices,
+            axis=0,
+            return_inverse=True,
+            return_counts=True
+        )
+
+        # 只保留点数达到阈值的体素
+        valid_voxel_mask = (counts >= min_points)
+        if not np.any(valid_voxel_mask):
+            return np.empty((0, 3), dtype=np.float32)
+
+        # 计算每个体素内所有点的和
+        num_voxels = len(counts)
+        sums = np.zeros((num_voxels, 3), dtype=np.float64)
+        np.add.at(sums, inverse, points)
+
+        # 计算体素质心
+        centroids = sums / counts[:, None]
+
+        # 只保留有效体素的质心
+        centroids = centroids[valid_voxel_mask]
+
+        return centroids.astype(np.float32)
 
     def filter_roi(self, points: np.ndarray) -> np.ndarray:
         """
@@ -368,6 +512,94 @@ class LidarCostmapNode(Node):
         )
         return points[mask]
 
+    def scan_points_once(self, x_points: np.ndarray, y_points: np.ndarray):
+        """
+        一次细角度扫描，同时生成：
+        1. costmap
+        2. obs_min_distance
+
+        逻辑：
+        - 使用 fine_scan_step_deg 对前方 180° 做更细射线扫描
+        - 每条细射线只保留最近障碍距离
+        - 用细射线最近障碍距离直接做 costmap 向后填充
+        - 再将细射线结果聚合成 bin_num 个 obs_min_distance
+        """
+        rows = int(self.scan_range / self.costmap_resolution)
+        cols = int(2 * self.scan_range / self.costmap_resolution)
+
+        costmap = np.zeros((rows, cols), dtype=np.uint8)
+        obs_min_distance = np.full(self.bin_num, self.scan_range, dtype=np.float32)
+
+        num_rays = len(self.ray_paths)
+        if len(x_points) == 0 or num_rays == 0:
+            return costmap, obs_min_distance
+
+        angles = np.arctan2(y_points, x_points)
+        distances = np.hypot(x_points, y_points)
+
+        front_mask = (
+            (x_points >= 0.0) &
+            (angles >= -math.pi / 2) &
+            (angles <=  math.pi / 2)
+        )
+
+        if not np.any(front_mask):
+            return costmap, obs_min_distance
+
+        front_angles = angles[front_mask]
+        front_distances = distances[front_mask]
+
+        # 点分配到细射线 bin
+        fine_indices = np.floor(
+            (front_angles + math.pi / 2) / self.fine_scan_step_rad
+        ).astype(np.int32)
+        fine_indices = np.clip(fine_indices, 0, num_rays - 1)
+
+        # 对每个细射线 bin，只保留最近点
+        # 排序规则：先按 bin，再按 distance 升序
+        order = np.lexsort((front_distances, fine_indices))
+        sorted_bins = fine_indices[order]
+
+        first_of_bin = np.empty(len(order), dtype=bool)
+        first_of_bin[0] = True
+        first_of_bin[1:] = (sorted_bins[1:] != sorted_bins[:-1])
+
+        selected = order[first_of_bin]
+
+        selected_bins = fine_indices[selected]
+        selected_distances = front_distances[selected]
+
+        # 每条细射线的最近障碍距离
+        fine_min_distance = np.full(num_rays, self.scan_range, dtype=np.float32)
+        fine_min_distance[selected_bins] = selected_distances.astype(np.float32)
+
+        # 用细射线最近障碍距离生成 costmap
+        for ray_idx, d in zip(selected_bins.tolist(), selected_distances.tolist()):
+            grid_rows, grid_cols, cell_exit_r = self.ray_paths[ray_idx]
+
+            if len(cell_exit_r) == 0:
+                continue
+
+            # 找到包含该障碍距离的那个格子，并从该格子开始向后全填障碍
+            start_idx = int(np.searchsorted(cell_exit_r, d, side='left'))
+
+            if start_idx < len(cell_exit_r):
+                costmap[
+                    grid_rows[start_idx:],
+                    grid_cols[start_idx:]
+                ] = self.costmap_value
+
+        # 将细射线结果聚合成 bin_num 个 obs_min
+        coarse_step_rad = math.pi / self.bin_num
+        coarse_indices = np.floor(
+            (self.ray_angles + math.pi / 2) / coarse_step_rad
+        ).astype(np.int32)
+        coarse_indices = np.clip(coarse_indices, 0, self.bin_num - 1)
+
+        np.minimum.at(obs_min_distance, coarse_indices, fine_min_distance)
+
+        return costmap, obs_min_distance
+        
     def project_points_to_initial_costmap(self, x_points: np.ndarray, y_points: np.ndarray) -> np.ndarray:
         """
         将点云直接投影到初步 2D costmap 上（ROS 标准坐标系）
@@ -581,6 +813,7 @@ class LidarCostmapNode(Node):
 
             points = self.latest_points
             cloud_stamp = self.latest_cloud_stamp
+            cloud_frame_id = self.latest_cloud_frame_id if self.latest_cloud_frame_id else 'base_link'
 
         # 时间戳失效检测
         now_sec = self.get_clock().now().nanoseconds / 1e9
@@ -619,20 +852,15 @@ class LidarCostmapNode(Node):
             x_filtered = points_roi[:, 0]
             y_filtered = points_roi[:, 1]
 
-        # 7. costmap
+        # 7-8. 一次细射线扫描，同时生成 costmap 和 obs_min_distance
         t0 = time.perf_counter()
-        costmap = self.points_to_costmap(x_filtered, y_filtered)
+        costmap, obs_min_distance = self.scan_points_once(x_filtered, y_filtered)
         t1 = time.perf_counter()
-        time_costmap = t1 - t0
-
-        # 8. obs_min_distance
-        t0 = time.perf_counter()
-        obs_min_distance = self.compute_lidar_obs(x_filtered, y_filtered)
-        t1 = time.perf_counter()
-        time_obs = t1 - t0
+        time_scan = t1 - t0
 
         # 9. 发布
         t0 = time.perf_counter()
+        self.publish_voxel_cloud(points_downsampled, cloud_stamp, cloud_frame_id)
         self.publish_local_costmap(costmap, cloud_stamp)
         self.publish_lidar_obs(obs_min_distance, cloud_stamp)
         t1 = time.perf_counter()
@@ -649,11 +877,11 @@ class LidarCostmapNode(Node):
                 f'roi={len(points_roi)} | '
                 f'costmap={costmap.shape[1]}x{costmap.shape[0]} | '
                 f'cloud_age={cloud_age:.3f}s | '
+                f'fine_scan_step={self.fine_scan_step_deg:.3f}deg | '
                 f't_height={time_height:.6f}s | '
                 f't_downsample={time_downsample:.6f}s | '
                 f't_roi={time_roi:.6f}s | '
-                f't_costmap={time_costmap:.6f}s | '
-                f't_obs={time_obs:.6f}s | '
+                f't_scan={time_scan:.6f}s | '
                 f't_publish={time_publish:.6f}s | '
                 f't_total={total_time:.6f}s'
             )
