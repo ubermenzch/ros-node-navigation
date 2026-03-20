@@ -57,9 +57,10 @@ class Nav2GPSNode(Node):
         from ekf_fusion_node import EKFFusionNode
         self.ekf_fusion_node = EKFFusionNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
-        self.get_logger().info('Starting map_node...')
-        from map_node import MapNode
-        self.map_node = MapNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
+        # map_planner_node 包含地图管理和路径规划功能（已替代 map_node）
+        self.get_logger().info('Starting map_planner_node...')
+        from map_planner_node import MapPlannerNode
+        self.map_planner_node = MapPlannerNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
         self.get_logger().info('Starting lidar_costmap_node...')
         from lidar_costmap_node import LidarCostmapNode
@@ -69,9 +70,10 @@ class Nav2GPSNode(Node):
         # from lidar_360_fusion_node import Lidar360FusionNode
         # self.lidar_360_fusion_node = Lidar360FusionNode()
 
-        self.get_logger().info('Starting planner_node...')
-        from planner_node import PlannerNode
-        self.planner_node = PlannerNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
+        # map_planner_node 包含地图管理和路径规划功能
+        self.get_logger().info('Starting map_planner_node...')
+        from map_planner_node import MapPlannerNode
+        self.map_planner_node = MapPlannerNode(log_dir=self.log_dir, timestamp=self.start_timestamp)
 
         if not is_test_mode:
             self.get_logger().info('Starting controller_node...')
@@ -82,8 +84,8 @@ class Nav2GPSNode(Node):
 
     def destroy_all_nodes(self):
         """销毁所有子节点"""
-        for attr in ('ekf_fusion_node', 'map_node', 'lidar_costmap_node',
-                     'lidar_360_fusion_node', 'planner_node', 'controller_node'):
+        for attr in ('ekf_fusion_node', 'map_planner_node',
+                     'lidar_360_fusion_node', 'lidar_costmap_node', 'controller_node'):
             node = getattr(self, attr, None)
             if node is not None:
                 try:
@@ -108,8 +110,7 @@ def main(args=None):
     # executor.add_node(nav_node.odom_node)
     # executor.add_node(nav_node.tf_publisher)
     executor.add_node(nav_node.ekf_fusion_node)
-    executor.add_node(nav_node.map_node)
-    executor.add_node(nav_node.planner_node)
+    executor.add_node(nav_node.map_planner_node)
     executor.add_node(nav_node.lidar_costmap_node)
     # executor.add_node(nav_node.lidar_360_fusion_node)
 

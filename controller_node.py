@@ -12,6 +12,8 @@
 使用 PyTorch 加载并运行模型
 """
 
+import torch
+import torch.nn
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import SingleThreadedExecutor
@@ -19,7 +21,6 @@ from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float64MultiArray
 import threading
-import time
 import math
 import numpy as np
 import os
@@ -33,7 +34,7 @@ from frequency_stats import FrequencyStats
 class ControllerNode(Node):
     """
     控制器节点
-    
+
     功能：
     1. 接收路径，维护未到达指针
     2. 获取机器狗位置、障碍物观测、速度
@@ -50,7 +51,7 @@ class ControllerNode(Node):
 
         # 加载配置文件
         config = get_config()
-        
+
         # 获取 controller_node 配置
         controller_config = config.get('controller_node', {})
 
@@ -62,7 +63,7 @@ class ControllerNode(Node):
         self.path_topic = subscriptions.get('path_topic', '/planned_path')
         self.lidar_obs_topic = subscriptions.get('lidar_obs_topic', '/lidar_obs')
         self.map_pose_topic = subscriptions.get('map_pose_topic', '/map_pose')
-        
+
         # 速度话题配置
         self.odom_topic = subscriptions.get('odom_topic', '/navigation/robot_odom')
 
@@ -88,15 +89,18 @@ class ControllerNode(Node):
         self.waypoints = []  # 路径点列表
         self.last_path_timestamp = 0.0
 
+        # 收到空路径后的停车标记
+        self.stop_requested_by_empty_path = False
+
         # 障碍物观测
         self.latest_obs = None  # obs_min_distance 数组
-        
+
         # 速度
         self.velocity = {'v': 0.0, 'w': 0.0}
-        
+
         # 上一次动作
         self.last_action = {'v': 0.0, 'w': 0.0}
-        
+
         # 控制参数
         self.max_v = controller_config.get('max_v', 1.0)  # 最大线速度 m/s
         self.max_w = controller_config.get('max_w', 1.0)  # 最大角速度 rad/s
@@ -106,7 +110,7 @@ class ControllerNode(Node):
             Path,
             self.path_topic,
             self.path_callback,
-            10
+            1
         )
 
         # 创建订阅者 - 障碍物观测
@@ -114,7 +118,7 @@ class ControllerNode(Node):
             LaserScan,
             self.lidar_obs_topic,
             self.obs_callback,
-            10
+            1
         )
 
         # 创建订阅者 - 速度（从 odom 获取线速度 v 和角速度 w）
@@ -122,14 +126,14 @@ class ControllerNode(Node):
             Odometry,
             self.odom_topic,
             self.odom_callback,
-            10
+            1
         )
 
         # 创建发布者 - 控制指令
         self.cmd_pub = self.create_publisher(
             Float64MultiArray,
             self.cmd_topic,
-            10
+            1
         )
 
         # 工作频率
@@ -163,7 +167,6 @@ class ControllerNode(Node):
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
-        # 使用传入的日志目录或创建新的
         if self.log_dir is not None:
             log_dir = self.log_dir
         else:
@@ -186,7 +189,6 @@ class ControllerNode(Node):
 
             self.logger.addHandler(file_handler)
 
-        # 终端输出初始化信息（同时写入文件日志）
         init_info = [
             'Controller Node initialized',
             f'  订阅路径: {self.path_sub.topic}',
@@ -199,51 +201,47 @@ class ControllerNode(Node):
         ]
 
         for line in init_info:
-            self.logger.info(line)  # 写入文件
-            self.get_logger().info(line)  # 输出到终端
+            self.logger.info(line)
+            self.get_logger().info(line)
 
     def _load_model(self, controller_config: dict):
         """加载强化学习模型"""
+
         model_path = controller_config.get('model_path', '')
-        
+        device = controller_config.get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
+
         if not model_path:
             self.logger.error('No model path specified')
             return
-        
+
         if not os.path.exists(model_path):
             self.logger.error(f'Model file not found: {model_path}')
             return
-        
+
         try:
-            import torch
-            # 使用 torch.load 加载 .pth 检查点文件
-            # weights_only=False 允许加载完整的模型对象（非仅权重）
-            checkpoint = torch.load(model_path, weights_only=False, map_location='cpu')
-            
-            # 检查加载的内容类型
+            checkpoint = torch.load(model_path, weights_only=False, map_location=device)
+
             if isinstance(checkpoint, torch.nn.Module):
-                # 如果直接保存的是完整模型
-                self.model = checkpoint
+                self.model = checkpoint.to(device)
                 self.model.eval()
-                self.logger.info(f'Loaded full PyTorch model: {model_path}')
+                self.logger.info(f'Loaded full PyTorch model: {model_path} on {device}')
             elif isinstance(checkpoint, dict):
-                # 如果保存的是 state_dict，检查是否有 'model' 或 'actor' 键
                 if 'model' in checkpoint:
                     self.logger.info('Checkpoint contains model state_dict')
-                    # 需要根据具体模型架构加载，此处记录警告
                     self.logger.warning('state_dict detected but model architecture unknown - using as-is')
-                    self.model = checkpoint['model'] if isinstance(checkpoint['model'], torch.nn.Module) else checkpoint
+                    self.model = checkpoint['model'].to(device) if isinstance(checkpoint['model'], torch.nn.Module) else checkpoint
                 elif 'actor' in checkpoint:
                     self.logger.info('Checkpoint contains actor state_dict')
-                    self.model = checkpoint['actor']
+                    self.model = checkpoint['actor'].to(device)
                 else:
                     self.logger.warning(f'Unknown checkpoint keys: {checkpoint.keys()}')
                     self.model = checkpoint
             else:
-                self.model = checkpoint
-                self.model.eval()
-                
-            self.logger.info(f'Successfully loaded PyTorch model from: {model_path}')
+                self.model = checkpoint.to(device) if hasattr(checkpoint, 'to') else checkpoint
+                if hasattr(self.model, 'eval'):
+                    self.model.eval()
+
+            self.logger.info(f'Successfully loaded PyTorch model from: {model_path} on {device}')
         except Exception as e:
             self.logger.error(f'Failed to load model: {e}')
             self.model = None
@@ -261,14 +259,20 @@ class ControllerNode(Node):
                 ]
                 waypoints.append(wp)
 
-            if not waypoints:
-                return
-
-            # 收到新路径直接替换
             with self.path_lock:
-                self.waypoints = waypoints
                 self.last_path_timestamp = timestamp
                 self._last_path_time = self.get_clock().now()
+
+                # 收到空路径：请求停车
+                if not waypoints:
+                    self.waypoints = []
+                    self.stop_requested_by_empty_path = True
+                    self.logger.info('Received empty path, stop requested')
+                    return
+
+                # 收到非空路径：清除空路径停车标记
+                self.waypoints = waypoints
+                self.stop_requested_by_empty_path = False
 
             self.logger.info(f'Received new path with {len(waypoints)} waypoints (base_link frame)')
 
@@ -278,48 +282,40 @@ class ControllerNode(Node):
     def obs_callback(self, msg: LaserScan):
         """接收障碍物观测"""
         try:
-            # 从 LaserScan 获取 ranges
             obs_min_distance = np.array(msg.ranges, dtype=np.float32)
-            
-            # 处理无效值 (inf, nan)
+
             obs_min_distance = np.where(
                 np.isfinite(obs_min_distance),
                 obs_min_distance,
-                msg.range_max  # 用最大距离替换无效值
+                msg.range_max
             )
-            
+
             with self.obs_lock:
                 self.latest_obs = obs_min_distance
                 self._last_obs_time = self.get_clock().now()
-                
+
         except Exception as e:
             self.logger.error(f'Failed to parse obs: {e}')
 
     def odom_callback(self, msg: Odometry):
         """从 odom 获取线速度 v 和角速度 w"""
         try:
-            # 线速度
             vx = msg.twist.twist.linear.x
             vy = msg.twist.twist.linear.y
             v = math.sqrt(vx * vx + vy * vy)
-            
-            # 角速度
+
             w = msg.twist.twist.angular.z
-            
+
             with self.velocity_lock:
                 self.velocity['v'] = v
                 self.velocity['w'] = w
                 self._last_odom_time = self.get_clock().now()
-                
+
         except Exception as e:
             self.logger.error(f'Failed to parse odom: {e}')
 
     def compute_state(self, timeout_status: dict) -> np.ndarray:
-        """计算状态
-        
-        Args:
-            timeout_status: 包含各传感器超时状态的字典
-        """
+        """计算状态"""
         state_parts = []
 
         # 1. obs_min_distance
@@ -327,42 +323,35 @@ class ControllerNode(Node):
             if self.latest_obs is not None and not timeout_status['lidar_obs']:
                 obs_min_distance = self.latest_obs
             else:
-                # 超时或无数据时使用默认值
                 obs_min_distance = np.ones(20, dtype=np.float32)
 
         state_parts.append(obs_min_distance)
 
-        # 2. distance, sin, cos（路径点已是base_link坐标系）
+        # 2. distance, sin, cos
         with self.path_lock:
             if self.waypoints:
-                # 第一个路径点就是相对于机器狗的位置
                 target = self.waypoints[0]
                 target_x = target[0] if isinstance(target, (list, tuple)) else target['x']
                 target_y = target[1] if isinstance(target, (list, tuple)) else target['y']
 
-                # 距离就是到第一个路径点的欧几里得距离
                 distance = math.sqrt(target_x * target_x + target_y * target_y)
-
-                # 角度：第一个路径点的方向就是相对于机器人正前方的方向
                 angle_to_target = math.atan2(target_y, target_x)
 
                 sin_val = math.sin(angle_to_target)
                 cos_val = math.cos(angle_to_target)
             else:
-                # 没有目标点时使用默认值
                 distance = 0.0
                 sin_val = 0.0
                 cos_val = 1.0
 
         state_parts.append(np.array([distance, sin_val, cos_val], dtype=np.float32))
 
-        # 3. v, w (里程计超时使用默认值)
+        # 3. v, w
         with self.velocity_lock:
             if not timeout_status['odom']:
                 v = self.velocity['v']
                 w = self.velocity['w']
             else:
-                # 超时时使用默认值
                 v = 0.0
                 w = 0.0
 
@@ -371,47 +360,41 @@ class ControllerNode(Node):
         # 4. last_action
         state_parts.append(np.array([self.last_action['v'], self.last_action['w']], dtype=np.float32))
 
-        # 拼接所有部分
         state = np.concatenate(state_parts)
-
         return state
 
     def inference(self, state: np.ndarray) -> tuple:
         """模型推理"""
         if self.model is None:
-            # 没有模型时返回默认动作
-            return 0.0, 0.0
-        
+            return None, None
+
         try:
             state = state.reshape(1, -1).astype(np.float32)
-            
-            import torch
+            state_tensor = torch.from_numpy(state)
+
+            device = next(self.model.parameters()).device if hasattr(self.model, 'parameters') else torch.device('cpu')
+            state_tensor = state_tensor.to(device)
+
             with torch.no_grad():
-                output = self.model(torch.from_numpy(state))
+                output = self.model(state_tensor)
                 output = output.cpu().numpy().flatten()
-            
-            # 输出范围 [-1, 1]
+
             model_v = float(output[0])
             model_w = float(output[1])
-            
-            # 限制范围
+
             model_v = max(-1.0, min(1.0, model_v))
             model_w = max(-1.0, min(1.0, model_w))
-            
+
             return model_v, model_w
-            
+
         except Exception as e:
             self.logger.error(f'Model inference failed: {e}')
-            return 0.0, 0.0
+            return None, None
 
     def map_output(self, model_v: float, model_w: float) -> tuple:
         """映射模型输出到实际控制指令"""
-        # model_v: [-1, 1] -> [0, max_v]
         cmd_v = (model_v + 1.0) / 2.0 * self.max_v
-        
-        # model_w: [-1, 1] -> [-max_w, max_w]
         cmd_w = model_w * self.max_w
-        
         return cmd_v, cmd_w
 
     def publish_cmd(self, cmd_v: float, cmd_w: float):
@@ -419,32 +402,24 @@ class ControllerNode(Node):
         msg = Float64MultiArray()
         msg.data = [cmd_v, cmd_w]
         self.cmd_pub.publish(msg)
-        
-        # 更新 last_action
+
         self.last_action = {'v': cmd_v, 'w': cmd_w}
 
     def _check_timeout(self) -> dict:
-        """检查各传感器数据是否超时
-        
-        Returns:
-            dict: 包含各传感器超时状态的字典 {'path': bool, 'lidar_obs': bool, 'odom': bool}
-        """
+        """检查各传感器数据是否超时"""
         current_time = self.get_clock().now()
         timeout_status = {'path': False, 'lidar_obs': False, 'odom': False}
 
-        # 检查路径超时
         if self._last_path_time is not None:
             elapsed = (current_time - self._last_path_time).nanoseconds / 1e9
             if elapsed > self.path_timeout:
                 timeout_status['path'] = True
 
-        # 检查障碍物观测超时
         if self._last_obs_time is not None:
             elapsed = (current_time - self._last_obs_time).nanoseconds / 1e9
             if elapsed > self.lidar_obs_timeout:
                 timeout_status['lidar_obs'] = True
 
-        # 检查里程计超时
         if self._last_odom_time is not None:
             elapsed = (current_time - self._last_odom_time).nanoseconds / 1e9
             if elapsed > self.odom_timeout:
@@ -454,13 +429,10 @@ class ControllerNode(Node):
 
     def update(self):
         """执行一次控制循环"""
-        # 记录频率统计
         self.freq_stats.tick()
 
-        # 检查各传感器数据是否超时
         timeout_status = self._check_timeout()
 
-        # 记录超时警告
         if timeout_status['path']:
             self.logger.warning('Path timeout - no path received recently')
         if timeout_status['lidar_obs']:
@@ -468,24 +440,29 @@ class ControllerNode(Node):
         if timeout_status['odom']:
             self.logger.warning('Odom timeout - no odometry data received recently')
 
-        # 检查是否有路径
+        # 优先处理：收到空路径后持续发送零速度
         with self.path_lock:
-            # 没有路径时或路径超时时，空操作（等待新路径）
-            if not self.waypoints or timeout_status['path']:
-                # 发布停止指令
-                self.publish_cmd(0.0, 0.0)
-                return
+            stop_requested = self.stop_requested_by_empty_path
+            has_waypoints = bool(self.waypoints)
 
-        # 计算状态（传入超时状态）
+        if stop_requested:
+            self.publish_cmd(0.0, 0.0)
+            return
+
+        # 没有路径时或路径超时时，先不发布控制
+        if (not has_waypoints) or timeout_status['path']:
+            return
+
+        if self.model is None:
+            return
+
         state = self.compute_state(timeout_status)
 
-        # 模型推理
         model_v, model_w = self.inference(state)
+        if model_v is None or model_w is None:
+            return
 
-        # 映射输出
         cmd_v, cmd_w = self.map_output(model_v, model_w)
-
-        # 发布控制指令
         self.publish_cmd(cmd_v, cmd_w)
 
 
@@ -493,8 +470,6 @@ def main(args=None):
     rclpy.init(args=args)
 
     node = ControllerNode()
-
-    # 注意：定时器已在 ControllerNode.__init__ 中创建，这里不再重复创建
 
     executor = SingleThreadedExecutor()
     executor.add_node(node)

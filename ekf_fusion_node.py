@@ -9,19 +9,26 @@
 3. 持续接收 GPS / ODOM / 世界系朝向
    - GPS: 提供 map 下绝对位置
    - 世界系朝向: 直接提供 map 下绝对朝向（来自 RTK 计算输出）
-   - ODOM: 提供 base_link 下速度，用于两次GPS之间的短时传播
+   - ODOM: 提供 odom 坐标系下的位姿
 4. 输出 /navigation/map_pose (PoseStamped, frame_id=map)
 
-说明：
-- 本节点不是“标准 EKF”，而是更适合当前传感器条件的工程化简化融合器
-- yaw 优先直接使用世界系朝向（RTK 计算输出）
-- x,y,yaw 由 ODOM 传播，并用 GPS 周期性校正
+坐标系约定（ENU / 地理坐标系）：
+- map 坐标系：与 UTM 坐标系对齐
+- 朝向角度 yaw（弧度）：
+  - 0°   = 朝东 (East)
+  - 90°  = 朝北 (North)
+  - 180° = 朝西 (West)
+  - 270° = 朝南 (South)
+
+融合策略：
+- odom_map_pose: odom 位姿转换到 map 坐标系
+- gps_map_pose: RTK 位姿转换到 map 坐标系
+- 最终 map_pose = (1-alpha) * odom_map_pose + alpha * gps_map_pose
 """
 
 import math
 import os
 import logging
-import threading
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Tuple
@@ -29,6 +36,7 @@ from typing import Optional, Tuple
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import SingleThreadedExecutor
+from rclpy.qos import DurabilityPolicy, QoSProfile
 
 from sensor_msgs.msg import NavSatFix, Imu
 from nav_msgs.msg import Odometry
@@ -61,33 +69,30 @@ def quaternion_to_yaw(q: Quaternion) -> float:
     )
 
 
-@dataclass
-class RobotState:
-    """机器人状态（工程化简化融合）"""
-    x: float = 0.0       # map坐标系下X（东）
-    y: float = 0.0       # map坐标系下Y（北）
-    yaw: float = 0.0     # map坐标系下航向角（弧度）
-    vx: float = 0.0      # base_link系线速度x（前）
-    vy: float = 0.0      # base_link系线速度y（左）
-    vyaw: float = 0.0    # 角速度z
+def yaw_to_quaternion(yaw: float) -> Quaternion:
+    """yaw 转四元数（绕 z 轴旋转）"""
+    q = Quaternion()
+    q.x = 0.0
+    q.y = 0.0
+    q.z = math.sin(yaw / 2.0)
+    q.w = math.cos(yaw / 2.0)
+    return q
 
 
 @dataclass
 class SensorData:
-    """最新传感器数据"""
+    """最新传感器数据（仅用于回调中提取原始数据，不做融合状态存储）"""
     # GPS
     gps_stamp: float = 0.0
     gps_lat: float = 0.0
     gps_lon: float = 0.0
     gps_alt: float = 0.0
-    gps_available: bool = False
 
     # ODOM（仅使用速度）
     odom_stamp: float = 0.0
     odom_vx: float = 0.0
     odom_vy: float = 0.0
     odom_vyaw: float = 0.0
-    odom_available: bool = False
 
     # ODOM 完整数据（用于 TF 发布）
     odom_pose_x: float = 0.0  # odom 坐标系下的 x
@@ -97,16 +102,12 @@ class SensorData:
     # 世界系朝向（来自 RTK 计算输出）
     world_orientation_stamp: float = 0.0
     world_orientation_yaw: float = 0.0
-    world_orientation_yaw_rate: float = 0.0
-    world_orientation_acc_x: float = 0.0
-    world_orientation_acc_y: float = 0.0
-    world_orientation_available: bool = False
 
 
 class EKFFusionNode(Node):
     """
     为了兼容原有启动方式，类名保留 EKFFusionNode。
-    实际实现为“简化融合器”，不是标准EKF。
+    实际实现为"简化融合器"，使用位姿直接融合方式。
     """
 
     def __init__(self, log_dir: str = None, timestamp: str = None):
@@ -131,21 +132,19 @@ class EKFFusionNode(Node):
 
         # 发布话题
         self.map_pose_topic = publications.get('map_pose_topic', '/navigation/map_pose')
+        self.gps_map_pose_topic = publications.get('gps_pose_topic', '/navigation/gps_pose')
 
         # 运行参数
         self.frequency = ekf_config.get('frequency', 10.0)
         self.gps_timeout = ekf_config.get('gps_timeout', 2.0)
         self.odom_timeout = ekf_config.get('odom_timeout', 1.0)
-        self.world_orientation_timeout = ekf_config.get('world_orientation_timeout', 0.5)
+        self.world_orientation_timeout = ekf_config.get('world_orientation_timeout', 5.0)
 
-        # 融合参数
-        # gps_alpha: GPS融合权重 [0,1]
-        #   - 位置: gps_alpha 控制 GPS 位置与 odom 传播的融合权重
-        #   - 朝向: gps_alpha 控制世界系朝向与 odom 角速度积分的融合权重
-        #   - 1.0 = 完全信任 GPS/世界系朝向, 0.0 = 完全信任 odom
-        self.gps_alpha = float(ekf_config.get('gps_alpha', 0.30))
-        self.gps_jump_reject = float(ekf_config.get('gps_jump_reject', 5.0))   # 单次GPS跳变拒绝阈值（米）
-        self.yaw_jump_reject = float(ekf_config.get('yaw_jump_reject', 0.5))   # 单次朝向跳变拒绝阈值（弧度）
+        # 启动时是否朝正东
+        # 当设为 true 时，机器人在启动时默认朝向正东，此时里程计 yaw=0 对应世界系 yaw=0
+        # 当设为 false 时，使用 world_orientation_topic 提供世界系朝向
+        self.face_east_on_startup = bool(ekf_config.get('face_east_on_startup', False))
+
         self.log_frequency_stats = bool(ekf_config.get('log_frequency_stats', True))
         self.log_enabled = bool(ekf_config.get('log_enabled', True))
 
@@ -154,24 +153,14 @@ class EKFFusionNode(Node):
         self.utm_transformer = None
         self.map_origin_utm = None   # {'easting': x, 'northing': y}
         self.map_origin_set = False
-        self.map_origin_lock = threading.Lock()
+        self.map_to_odom_published = False
+        self.utm_to_map_published = False
 
         # 传感器数据
         self.latest_sensor_data = SensorData()
-        self.sensor_lock = threading.Lock()
 
         # 最近消息到达时间（本地时间，用于超时判断）
         self.last_gps_time = 0.0
-        self.last_odom_time = 0.0
-        self.last_world_orientation_time = 0.0
-
-        # 状态
-        self.state = RobotState()
-        self.state_lock = threading.Lock()
-
-        # 融合时序
-        self.last_fuse_time: Optional[float] = None
-        self.last_processed_gps_stamp: float = 0.0   # 防止同一帧GPS重复校正
 
         # 日志
         self._init_logger(self.log_enabled)
@@ -184,23 +173,28 @@ class EKFFusionNode(Node):
             NavSatFix,
             self.gps_topic,
             self.gps_callback,
-            10
+            1
         )
-        self.world_orientation_sub = self.create_subscription(
-            Imu,
-            self.world_orientation_topic,
-            self.world_orientation_callback,
-            10
-        )
+        if self.face_east_on_startup:
+            self.world_orientation_sub = None
+        else:
+            self.world_orientation_sub = self.create_subscription(
+                Imu,
+                self.world_orientation_topic,
+                self.world_orientation_callback,
+                1
+            )
         self.odom_sub = self.create_subscription(
             Odometry,
             self.odom_topic,
             self.odom_callback,
-            10
+            1
         )
 
-        # 发布者
-        self.map_pose_pub = self.create_publisher(PoseStamped, self.map_pose_topic, 10)
+        # 发布者 - 使用 transient local 确保晚加入的订阅者(如 rviz)能获取最新数据
+        qos_transient_local = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self.map_pose_pub = self.create_publisher(PoseStamped, self.map_pose_topic, qos_transient_local)
+        self.gps_pose_pub = self.create_publisher(PoseStamped, self.gps_map_pose_topic, 10)
 
         # 静态 TF 广播器
         self.tf_broadcaster = StaticTransformBroadcaster(self)
@@ -212,8 +206,17 @@ class EKFFusionNode(Node):
         self.map_to_odom_offset_x = 0.0
         self.map_to_odom_offset_y = 0.0
         self.map_to_odom_offset_yaw = 0.0  # odom 初始朝向
-        self.first_gps_received = False  # 是否已收到首个有效 GPS
 
+        # GPS 到达时记录锚点
+        # GPS 在 map 坐标系的绝对位置
+        self.gps_map_x: Optional[float] = None
+        self.gps_map_y: Optional[float] = None
+        # GPS 到达时刻的 map 坐标系快照（用于 DR 增量计算）
+        self.odom_in_map_snapshot_x: Optional[float] = None
+        self.odom_in_map_snapshot_y: Optional[float] = None
+
+        # world_orientation 到达时刻的 odom 航向快照
+        self.odom_snapshot_yaw: Optional[float] = None
         # 定时融合
         period = 1.0 / max(self.frequency, 1e-3)
         self.timer = self.create_timer(period, self.fuse)
@@ -257,17 +260,14 @@ class EKFFusionNode(Node):
             self.logger.addHandler(file_handler)
 
         init_info = [
-            'Fusion Node initialized (simplified fusion, not standard EKF)',
+            'Fusion Node initialized (DR-based fusion)',
             f'  工作频率: {self.frequency} Hz',
             f'  GPS 话题: {self.gps_topic}',
             f'  世界系朝向话题: {self.world_orientation_topic}',
             f'  ODOM 话题: {self.odom_topic}',
             f'  GPS 超时: {self.gps_timeout}s',
-            f'  世界系朝向超时: {self.world_orientation_timeout}s',
             f'  ODOM 超时: {self.odom_timeout}s',
-            f'  GPS/世界系朝向融合权重 (alpha): {self.gps_alpha}',
-            f'  GPS 跳变拒绝阈值: {self.gps_jump_reject} m',
-            f'  朝向跳变拒绝阈值: {self.yaw_jump_reject} rad ({math.degrees(self.yaw_jump_reject):.1f} deg)',
+            f'  世界朝向超时: {self.world_orientation_timeout}s',
             f'  日志文件: {log_file}',
             f'  日志启用: {enabled}',
         ]
@@ -349,7 +349,7 @@ class EKFFusionNode(Node):
             return (None, None)
 
     def gps_callback(self, msg: NavSatFix):
-        """GPS 回调"""
+        """GPS 回调：记录 GPS 在 map 坐标系的绝对位置作为位置锚点"""
         current_time = self.get_clock().now().nanoseconds / 1e9
         self._update_frequency_stats('gps')
 
@@ -369,13 +369,11 @@ class EKFFusionNode(Node):
             not (abs(lat) < 1e-12 and abs(lon) < 1e-12)
         )
 
-        with self.sensor_lock:
-            self.latest_sensor_data.gps_stamp = gps_stamp
-            self.latest_sensor_data.gps_lat = lat
-            self.latest_sensor_data.gps_lon = lon
-            self.latest_sensor_data.gps_alt = alt if math.isfinite(alt) else 0.0
-            self.latest_sensor_data.gps_available = gps_valid
-            self.last_gps_time = current_time
+        self.latest_sensor_data.gps_stamp = gps_stamp
+        self.latest_sensor_data.gps_lat = lat
+        self.latest_sensor_data.gps_lon = lon
+        self.latest_sensor_data.gps_alt = alt if math.isfinite(alt) else 0.0
+        self.last_gps_time = current_time
 
         # 首次有效GPS，设定 map 原点并发布 utm -> map 静态TF
         if gps_valid and not self.map_origin_set:
@@ -383,35 +381,48 @@ class EKFFusionNode(Node):
             if utm_x is not None and utm_y is not None:
                 self._set_map_origin(utm_x, utm_y, lat, lon)
 
+        # 每次有效GPS且 map原点已设置时，更新位置锚点
+        if gps_valid and self.map_origin_set and self.utm_to_map_published:
+            utm_x, utm_y = self.gps_to_utm(lat, lon)
+            if utm_x is not None and utm_y is not None:
+                gps_map_x, gps_map_y, _ = self._transform_utm_to_map(utm_x, utm_y, 0.0)
+
+                odom_pose_x = self.latest_sensor_data.odom_pose_x
+                odom_pose_y = self.latest_sensor_data.odom_pose_y
+
+                self.gps_map_x = gps_map_x
+                self.gps_map_y = gps_map_y
+
+                if self.map_to_odom_published:
+                    odom_in_map_snapshot_x, odom_in_map_snapshot_y, _ = self._transform_odom_to_map(
+                        odom_pose_x, odom_pose_y, 0.0
+                    )
+                    self.odom_in_map_snapshot_x = odom_in_map_snapshot_x
+                    self.odom_in_map_snapshot_y = odom_in_map_snapshot_y
+
+                    self.logger.debug(
+                        f'GPS anchor updated: gps_map=({gps_map_x:.3f}, {gps_map_y:.3f}), '
+                        f'map_snapshot=({odom_in_map_snapshot_x:.3f}, {odom_in_map_snapshot_y:.3f})'
+                    )
+                else:
+                    self.logger.warning('GPS anchor skipped: map->odom not published yet')
+
     def _set_map_origin(self, utm_x: float, utm_y: float, lat: float, lon: float):
         """设置 map 原点，并发布 map->odom 静态 TF"""
-        with self.map_origin_lock:
-            if self.map_origin_set:
-                return
+        self.map_origin_utm = {
+            'easting': utm_x,
+            'northing': utm_y,
+        }
 
-            self.map_origin_utm = {
-                'easting': utm_x,
-                'northing': utm_y,
-            }
-            self.map_origin_set = True
-
-            self._publish_utm_to_map_transform(utm_x, utm_y)
-
-            msg = (
-                f'Map origin set: '
-                f'UTM({utm_x:.3f}, {utm_y:.3f}), '
-                f'GPS(lat={lat:.8f}, lon={lon:.8f})'
-            )
-            self.logger.info(msg)
-            self.get_logger().info(msg)
-
-            # 原点建立后，当前位置初始化为 map 原点
-            with self.state_lock:
-                self.state.x = 0.0
-                self.state.y = 0.0
-
-            # 在收到首个有效 GPS 后，设置 map->odom 偏移并发布静态 TF
-            self._publish_map_to_odom_transform()
+        msg = (
+            f'Map origin set: '
+            f'UTM({utm_x:.3f}, {utm_y:.3f}), '
+            f'GPS(lat={lat:.8f}, lon={lon:.8f})'
+        )
+        self.logger.info(msg)
+        self.get_logger().info(msg)
+        self.map_origin_set = True
+        self._publish_utm_to_map_transform(utm_x, utm_y)
 
     def _publish_utm_to_map_transform(self, utm_x: float, utm_y: float):
         """
@@ -443,78 +454,134 @@ class EKFFusionNode(Node):
 
         self.tf_broadcaster.sendTransform(t)
 
+        self.utm_to_map_published = True
+
+    def _transform_odom_to_map(
+        self, odom_x: float, odom_y: float, odom_yaw: float
+    ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """
+        将 odom 坐标系中的位姿转换到 map 坐标系
+
+        Args:
+            odom_x: odom 坐标系下的 X 坐标
+            odom_y: odom 坐标系下的 Y 坐标
+            odom_yaw: odom 坐标系下的朝向角（弧度）
+
+        Returns:
+            (map_x, map_y, map_yaw): map 坐标系下的位姿
+            如果 map_to_odom_published 为 False，返回 (None, None, None)
+
+        转换公式：
+            P_map = R(yaw_offset) @ P_odom + T_offset
+            yaw_map = yaw_odom + yaw_offset
+
+        坐标系约定（ENU）：
+            X: 东向, Y: 北向
+            yaw: 0°=东, 90°=北, 180°=西, 270°=南
+        """
+        if not self.map_to_odom_published:
+            self.logger.warning('Cannot transform ODOM to map: map_to_odom not published yet')
+            return (None, None, None)
+
+        cos_offset = math.cos(self.map_to_odom_offset_yaw)
+        sin_offset = math.sin(self.map_to_odom_offset_yaw)
+
+        map_x = cos_offset * odom_x - sin_offset * odom_y + self.map_to_odom_offset_x
+        map_y = sin_offset * odom_x + cos_offset * odom_y + self.map_to_odom_offset_y
+        map_yaw = normalize_angle(odom_yaw + self.map_to_odom_offset_yaw)
+
+        return map_x, map_y, map_yaw
+
+    def _transform_utm_to_map(
+        self, utm_x: float, utm_y: float, yaw: float = 0.0
+    ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+        """
+        将 UTM 坐标系中的位姿转换到 map 坐标系
+
+        Args:
+            utm_x: UTM 坐标系下的东向坐标（米）
+            utm_y: UTM 坐标系下的北向坐标（米）
+            yaw: UTM/map 坐标系下的朝向角（弧度，默认0）
+
+        Returns:
+            (map_x, map_y, map_yaw): map 坐标系下的位姿
+            如果 utm_to_map_published 为 False，返回 (None, None, None)
+
+        说明：
+            map 原点 = 首次 GPS 位置对应的 UTM 坐标
+            map 与 UTM 轴对齐，无旋转
+
+        坐标系约定（ENU）：
+            X: 东向, Y: 北向
+            yaw: 0°=东, 90°=北, 180°=西, 270°=南
+        """
+        if not self.utm_to_map_published:
+            self.logger.warning('Cannot transform UTM to map: utm_to_map not published yet')
+            return (None, None, None)
+
+        map_x = utm_x - self.map_origin_utm['easting']
+        map_y = utm_y - self.map_origin_utm['northing']
+        return map_x, map_y, yaw
+
     def _publish_map_to_odom_transform(self):
         """
         发布 map -> odom 静态 TF
 
-        在收到首个有效 GPS 后（设置 map 原点时），根据当前 odom 位置和朝向发布此 TF。
+        基于世界系朝向锚点和当前 odom 位姿计算并发布此 TF。
 
         语义：
         - 父坐标系: map
         - 子坐标系: odom
 
-        严格逆变换计算：
-        如果 odom->base_link 在首帧时的位姿是 (x0, y0, yaw0)，
-        那么 map->odom 的变换需要将 base_link 位置转换到 map 坐标系后再取负。
-
-        具体计算：
-        - 旋转: -yaw0 (负的首帧 odom 朝向)
-        - 平移: -R(-yaw0) @ [x0, y0] (平移也要跟旋转联动)
+        变换公式：
+        - yaw_offset = world_orientation_yaw - odom_yaw
+        - tx = -(cos(yaw_offset) * odom_x - sin(yaw_offset) * odom_y)
+        - ty = -(sin(yaw_offset) * odom_x + cos(yaw_offset) * odom_y)
         """
-        # 检查 odom 是否已经收到并更新过
-        with self.sensor_lock:
-            odom_available = self.latest_sensor_data.odom_available
-            odom_pose_x = self.latest_sensor_data.odom_pose_x
-            odom_pose_y = self.latest_sensor_data.odom_pose_y
-            odom_pose_yaw = self.latest_sensor_data.odom_pose_yaw
+        odom_stamp = self.latest_sensor_data.odom_stamp
+        odom_pose_x = self.latest_sensor_data.odom_pose_x
+        odom_pose_y = self.latest_sensor_data.odom_pose_y
+        odom_pose_yaw = self.latest_sensor_data.odom_pose_yaw
+        world_orientation_yaw = self.latest_sensor_data.world_orientation_yaw
+        world_orientation_stamp = self.latest_sensor_data.world_orientation_stamp
 
-        if not odom_available:
+        if odom_stamp <= 0:
             self.logger.warning('Cannot publish map->odom TF: odom not available yet')
             return
+        if world_orientation_stamp <= 0:
+            self.logger.warning('Cannot publish map->odom TF: world orientation not available yet')
+            return
+            
+        self.map_to_odom_offset_yaw = normalize_angle(world_orientation_yaw - odom_pose_yaw)
 
-        # 设置 map->odom 偏移（存储用于后续使用）
-        self.map_to_odom_offset_x = odom_pose_x
-        self.map_to_odom_offset_y = odom_pose_y
-        self.map_to_odom_offset_yaw = odom_pose_yaw  # 存储初始朝向
-        self.first_gps_received = True
+        cos_yaw = math.cos(self.map_to_odom_offset_yaw)
+        sin_yaw = math.sin(self.map_to_odom_offset_yaw)
 
-        # 构建并发布 TF
+        self.map_to_odom_offset_x = -(cos_yaw * odom_pose_x - sin_yaw * odom_pose_y)
+        self.map_to_odom_offset_y = -(sin_yaw * odom_pose_x + cos_yaw * odom_pose_y)
+
+        # 构建并发布 TF（平移部分直接取负）
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = 'map'
         t.child_frame_id = 'odom'
 
-        # 严格的逆变换计算：
-        # 旋转：-yaw0
-        yaw_offset = -self.map_to_odom_offset_yaw
-
-        # 平移：-R(-yaw0) @ [x0, y0]
-        # R(-yaw0) = [[cos(-yaw0), -sin(-yaw0)], [sin(-yaw0), cos(-yaw0)]]
-        #           = [[cos(yaw0), sin(yaw0)], [-sin(yaw0), cos(yaw0)]]
-        # 因为是求逆，所以用 -yaw0 的旋转矩阵
-        cos_yaw = math.cos(-self.map_to_odom_offset_yaw)
-        sin_yaw = math.sin(-self.map_to_odom_offset_yaw)
-
-        # [tx, ty] = -R(-yaw0) @ [x0, y0]
-        tx = -(cos_yaw * self.map_to_odom_offset_x - sin_yaw * self.map_to_odom_offset_y)
-        ty = -(sin_yaw * self.map_to_odom_offset_x + cos_yaw * self.map_to_odom_offset_y)
-
-        t.transform.translation.x = tx
-        t.transform.translation.y = ty
+        t.transform.translation.x = self.map_to_odom_offset_x
+        t.transform.translation.y = self.map_to_odom_offset_y
         t.transform.translation.z = 0.0
 
-        # map->odom: odom 相对于 map 的旋转（负的初始朝向）
         t.transform.rotation.x = 0.0
         t.transform.rotation.y = 0.0
-        t.transform.rotation.z = math.sin(yaw_offset / 2.0)
-        t.transform.rotation.w = math.cos(yaw_offset / 2.0)
+        t.transform.rotation.z = math.sin(self.map_to_odom_offset_yaw / 2.0)
+        t.transform.rotation.w = math.cos(self.map_to_odom_offset_yaw / 2.0)
 
         self.tf_broadcaster.sendTransform(t)
 
+        self.map_to_odom_published = True
+
         self.logger.info(
             f'Published map->odom TF: offset=({self.map_to_odom_offset_x:.3f}, {self.map_to_odom_offset_y:.3f}), '
-            f'yaw={math.degrees(self.map_to_odom_offset_yaw):.1f} deg, '
-            f'corrected_offset=({tx:.3f}, {ty:.3f})'
+            f'yaw={math.degrees(self.map_to_odom_offset_yaw):.1f} deg'
         )
         self.get_logger().info(
             f'Published map->odom TF: offset=({self.map_to_odom_offset_x:.3f}, {self.map_to_odom_offset_y:.3f}), '
@@ -522,7 +589,7 @@ class EKFFusionNode(Node):
         )
 
     def odom_callback(self, msg: Odometry):
-        """ODOM 回调：读取速度、位置和朝向"""
+        """ODOM 回调：读取速度、位置、朝向，并发布 odom->base_link TF"""
         current_time = self.get_clock().now().nanoseconds / 1e9
         self._update_frequency_stats('odom')
 
@@ -531,29 +598,33 @@ class EKFFusionNode(Node):
         else:
             odom_stamp = current_time
 
-        # 提取位置
         odom_pose_x = msg.pose.pose.position.x
         odom_pose_y = msg.pose.pose.position.y
 
-        # 提取朝向（从四元数）
         q = msg.pose.pose.orientation
-        odom_pose_yaw = 0.0
-        if q.x != 0.0 or q.y != 0.0 or q.z != 0.0 or q.w != 0.0:
-            odom_pose_yaw = quaternion_to_yaw(q)
+        odom_pose_yaw = normalize_angle(quaternion_to_yaw(q))
 
-        with self.sensor_lock:
-            self.latest_sensor_data.odom_stamp = odom_stamp
-            self.latest_sensor_data.odom_vx = msg.twist.twist.linear.x
-            self.latest_sensor_data.odom_vy = msg.twist.twist.linear.y
-            self.latest_sensor_data.odom_vyaw = msg.twist.twist.angular.z
-            self.latest_sensor_data.odom_pose_x = odom_pose_x
-            self.latest_sensor_data.odom_pose_y = odom_pose_y
-            self.latest_sensor_data.odom_pose_yaw = odom_pose_yaw
-            self.latest_sensor_data.odom_available = True
-            self.last_odom_time = current_time
+        self.latest_sensor_data.odom_stamp = odom_stamp
+        self.latest_sensor_data.odom_vx = msg.twist.twist.linear.x
+        self.latest_sensor_data.odom_vy = msg.twist.twist.linear.y
+        self.latest_sensor_data.odom_vyaw = msg.twist.twist.angular.z
+        self.latest_sensor_data.odom_pose_x = odom_pose_x
+        self.latest_sensor_data.odom_pose_y = odom_pose_y
+        self.latest_sensor_data.odom_pose_yaw = odom_pose_yaw
+
+        if self.face_east_on_startup:
+            imu_msg = Imu()
+            imu_msg.header.stamp = msg.header.stamp
+            imu_msg.orientation = yaw_to_quaternion(odom_pose_yaw)
+            self.world_orientation_callback(imu_msg)
+
+        if self.map_origin_set and not self.map_to_odom_published:
+            self._publish_map_to_odom_transform()
+
+        self._publish_odom_to_base_link_tf(odom_pose_x, odom_pose_y, odom_pose_yaw, msg.header.stamp)
 
     def world_orientation_callback(self, msg: Imu):
-        """世界系朝向回调：读取 RTK 计算输出的世界系 yaw"""
+        """世界系朝向回调：记录世界系绝对朝向作为朝向锚点"""
         current_time = self.get_clock().now().nanoseconds / 1e9
         self._update_frequency_stats('imu')
 
@@ -563,186 +634,124 @@ class EKFFusionNode(Node):
             world_orientation_stamp = current_time
 
         q = msg.orientation
-        world_orientation_yaw = 0.0
-        if q.x != 0.0 or q.y != 0.0 or q.z != 0.0 or q.w != 0.0:
-            world_orientation_yaw = quaternion_to_yaw(q)
+        world_orientation_yaw = normalize_angle(quaternion_to_yaw(q))
 
-        with self.sensor_lock:
-            self.latest_sensor_data.world_orientation_stamp = world_orientation_stamp
-            self.latest_sensor_data.world_orientation_yaw = world_orientation_yaw
-            self.latest_sensor_data.world_orientation_yaw_rate = msg.angular_velocity.z
-            self.latest_sensor_data.world_orientation_acc_x = msg.linear_acceleration.x
-            self.latest_sensor_data.world_orientation_acc_y = msg.linear_acceleration.y
-            self.latest_sensor_data.world_orientation_available = True
-            self.last_world_orientation_time = current_time
+        self.latest_sensor_data.world_orientation_stamp = world_orientation_stamp
+        self.latest_sensor_data.world_orientation_yaw = world_orientation_yaw
+
+        odom_stamp = self.latest_sensor_data.odom_stamp
+
+        if odom_stamp > 0:
+            odom_pose_yaw = self.latest_sensor_data.odom_pose_yaw
+            self.odom_snapshot_yaw = odom_pose_yaw
+            self.logger.debug(
+                f'Odom yaw anchor updated: odom_pose_yaw={math.degrees(odom_pose_yaw):.1f} deg'
+            )
 
     def fuse(self):
-        """执行一次简化融合"""
-        self.node_freq_stats.tick()
+        """
+        基于航位推算（DR）的融合策略。
 
+        位置：GPS 到达时记录锚点 (gps_map, odom_in_map_snapshot)，之后用 odom 增量更新
+        朝向：直接用 world_orientation_yaw + map_to_odom_offset_yaw
+
+        所有增量计算均在 map 坐标系中进行，确保坐标系一致性。
+        """
+        self.node_freq_stats.tick()
         current_time = self.get_clock().now().nanoseconds / 1e9
 
-        if self.last_fuse_time is None:
-            dt = 1.0 / max(self.frequency, 1e-3)
-        else:
-            dt = current_time - self.last_fuse_time
-            dt = max(1e-3, min(dt, 0.5))  # 防止时间异常导致传播过大
-        self.last_fuse_time = current_time
+        if not self.map_origin_set:
+            return
 
-        with self.sensor_lock:
-            gps_stamp = self.latest_sensor_data.gps_stamp
-            gps_available = self.latest_sensor_data.gps_available
-            gps_lat = self.latest_sensor_data.gps_lat
-            gps_lon = self.latest_sensor_data.gps_lon
+        odom_pose_x = self.latest_sensor_data.odom_pose_x
+        odom_pose_y = self.latest_sensor_data.odom_pose_y
+        odom_pose_yaw = self.latest_sensor_data.odom_pose_yaw
+        odom_stamp = self.latest_sensor_data.odom_stamp
 
-            odom_available = self.latest_sensor_data.odom_available
-            odom_vx = self.latest_sensor_data.odom_vx
-            odom_vy = self.latest_sensor_data.odom_vy
-            odom_vyaw = self.latest_sensor_data.odom_vyaw
+        if odom_stamp <= 0:
+            return
 
-        world_orientation_available = self.latest_sensor_data.world_orientation_available
-        world_orientation_yaw = self.latest_sensor_data.world_orientation_yaw
-        world_orientation_yaw_rate = self.latest_sensor_data.world_orientation_yaw_rate
+        # odom 数据时效检查（超时仍使用，但记录警告）
+        if current_time - odom_stamp > self.odom_timeout:
+            self.logger.warning(f'Odom data stale: age={current_time - odom_stamp:.2f}s > timeout={self.odom_timeout}s')
+            # 仍然使用该数据（已是最新的）
 
-        gps_fresh = (current_time - self.last_gps_time) <= self.gps_timeout
-        odom_fresh = (current_time - self.last_odom_time) <= self.odom_timeout
-        world_orientation_fresh = (current_time - self.last_world_orientation_time) <= self.world_orientation_timeout
+        # 航位推算计算
+        # 必须两个 anchor 都有效才能进行融合
+        location_anchor_set = (
+            self.gps_map_x is not None and
+            self.odom_in_map_snapshot_x is not None and
+            self.odom_in_map_snapshot_y is not None
+        )
+        yaw_anchor_set = self.odom_snapshot_yaw is not None
 
-        fusion_components = []
-        gps_applied_this_cycle = False
-        alpha = max(0.0, min(1.0, self.gps_alpha))  # 统一融合权重
+        if not (location_anchor_set and yaw_anchor_set):
+            return
 
-        with self.state_lock:
-            # 1) 朝向融合：世界系朝向 vs odom 角速度积分
-            if world_orientation_available and world_orientation_fresh:
-                # 先用 odom 积分计算预测朝向
-                odom_yaw_pred = normalize_angle(self.state.yaw + odom_vyaw * dt) if (odom_available and odom_fresh) else self.state.yaw
+        map_x: float = 0.0
+        map_y: float = 0.0
+        yaw: float = 0.0
+        fusion_components: list = []
 
-                # 计算世界系朝向与 odom 预测的跳变差值
-                yaw_err = abs(normalize_angle(world_orientation_yaw - odom_yaw_pred))
-
-                # 第一帧校正不拒绝；后续若跳变过大则拒绝
-                first_yaw_correction = (abs(self.state.yaw) < 1e-9)
-
-                if first_yaw_correction or yaw_err <= self.yaw_jump_reject:
-                    # 使用 gps_alpha 融合世界系朝向和 odom 积分
-                    if alpha >= 1.0:
-                        # 完全信任世界系朝向
-                        self.state.yaw = normalize_angle(world_orientation_yaw)
-                        self.state.vyaw = world_orientation_yaw_rate
-                    else:
-                        # 融合：alpha * 世界系朝向 + (1-alpha) * odom 积分
-                        self.state.yaw = normalize_angle(alpha * world_orientation_yaw + (1 - alpha) * odom_yaw_pred)
-                        # 角速度也做融合
-                        self.state.vyaw = alpha * world_orientation_yaw_rate + (1 - alpha) * (odom_vyaw if (odom_available and odom_fresh) else 0.0)
-                    fusion_components.append('ORI')
-                else:
-                    # 朝向跳变过大，拒绝世界系朝向，使用 odom 积分
-                    self.get_logger().warn(
-                        f'Reject yaw jump: err={math.degrees(yaw_err):.2f} deg, '
-                        f'world_ori={math.degrees(world_orientation_yaw):.1f} deg, '
-                        f'odom_pred={math.degrees(odom_yaw_pred):.1f} deg'
-                    )
-                    self.state.yaw = odom_yaw_pred
-                    self.state.vyaw = odom_vyaw if (odom_available and odom_fresh) else 0.0
-                    fusion_components.append('ODOM_YAW')
-            elif odom_available and odom_fresh:
-                # 无世界系朝向时，用 odom 角速度积分
-                self.state.yaw = normalize_angle(self.state.yaw + odom_vyaw * dt)
-                self.state.vyaw = odom_vyaw
-                fusion_components.append('ODOM_YAW')
-
-            # 2) 使用 ODOM 速度在当前 yaw 下做短时传播（作为预测）
-            if odom_available and odom_fresh:
-                self.state.vx = odom_vx
-                self.state.vy = odom_vy
-
-                c = math.cos(self.state.yaw)
-                s = math.sin(self.state.yaw)
-
-                self.state.x += (self.state.vx * c - self.state.vy * s) * dt
-                self.state.y += (self.state.vx * s + self.state.vy * c) * dt
-
-                fusion_components.append('ODOM')
-
-            # 3) 仅对“新到的一帧GPS”做一次绝对位置校正
-            if (
-                gps_available and
-                gps_fresh and
-                self.map_origin_set and
-                gps_stamp > self.last_processed_gps_stamp
-            ):
-                self.last_processed_gps_stamp = gps_stamp
-
-                utm_x, utm_y = self.gps_to_utm(gps_lat, gps_lon)
-                if utm_x is not None and utm_y is not None:
-                    gps_map_x = utm_x - self.map_origin_utm['easting']
-                    gps_map_y = utm_y - self.map_origin_utm['northing']
-
-                    err = math.hypot(gps_map_x - self.state.x, gps_map_y - self.state.y)
-
-                    # 第一帧校正不拒绝；后续若跳变过大则拒绝
-                    first_gps_correction = (self.last_processed_gps_stamp == gps_stamp and abs(self.state.x) < 1e-9 and abs(self.state.y) < 1e-9)
-
-                    if first_gps_correction or err <= self.gps_jump_reject:
-                        # 使用 gps_alpha 融合 GPS 位置和 odom 传播位置
-                        # alpha=1: 完全信任 GPS, alpha=0: 完全信任 odom
-                        self.state.x = (1.0 - alpha) * self.state.x + alpha * gps_map_x
-                        self.state.y = (1.0 - alpha) * self.state.y + alpha * gps_map_y
-
-                        gps_applied_this_cycle = True
-                        fusion_components.append('GPS')
-                    else:
-                        self.get_logger().warn(
-                            f'Reject GPS jump: err={err:.2f} m, '
-                            f'gps_map=({gps_map_x:.2f}, {gps_map_y:.2f}), '
-                            f'state=({self.state.x:.2f}, {self.state.y:.2f})'
-                        )
-
-        fusion_mode = '+'.join(fusion_components) if fusion_components else 'invalid'
-
-        self.publish_fusion_result(fusion_mode)
-
-        with self.state_lock:
-            self.logger.info(
-                f'Fusion | {fusion_mode} | '
-                f'Pos=({self.state.x:.3f}, {self.state.y:.3f}) | '
-                f'Yaw={math.degrees(self.state.yaw):.1f} deg | '
-                f'GPS_applied={gps_applied_this_cycle}'
+        # ============================================================
+        # 位置 DR：GPS 锚点 + odom 增量（在 map 坐标系中计算）
+        # ============================================================
+        gps_stamp = self.latest_sensor_data.gps_stamp
+        if current_time - gps_stamp > self.gps_timeout:
+            self.logger.warning(
+                f'GPS data stale: age={current_time - gps_stamp:.2f}s > timeout={self.gps_timeout}s'
             )
+            # 仍然使用 DR 计算的位置（已是最新的）
+        # 将当前 odom 位置转换到 map 坐标系
+        if not self.map_to_odom_published:
+            self.logger.warning('DR computation skipped: map->odom not published yet')
+            return
+
+        current_odom_in_map_x, current_odom_in_map_y, _ = self._transform_odom_to_map(odom_pose_x, odom_pose_y, 0.0)
+        # 计算增量（两个 map 坐标系位置的差）
+        delta_x = current_odom_in_map_x - self.odom_in_map_snapshot_x
+        delta_y = current_odom_in_map_y - self.odom_in_map_snapshot_y
+        map_x = self.gps_map_x + delta_x
+        map_y = self.gps_map_y + delta_y
+        fusion_components.append('POS_DR')
+
+        # 发布 GPS 原始位姿（用于可视化对比）
+        self._publish_gps_pose(self.gps_map_x, self.gps_map_y, self.latest_sensor_data.world_orientation_yaw)
+
+        # ============================================================
+        # 航向：直接用 world_orientation_yaw + map_to_odom_offset_yaw
+        # ============================================================
+        world_orientation_stamp = self.latest_sensor_data.world_orientation_stamp
+        if current_time - world_orientation_stamp > self.world_orientation_timeout:
+            self.logger.warning(
+                f'World orientation stale: age={current_time - world_orientation_stamp:.2f}s > '
+                f'timeout={self.world_orientation_timeout}s'
+            )
+
+        delta_odom_yaw = normalize_angle(odom_pose_yaw - self.odom_snapshot_yaw)
+        yaw = normalize_angle(self.latest_sensor_data.world_orientation_yaw + delta_odom_yaw)
+        fusion_components.append('YAW_DR')
+
+        fusion_mode = '+'.join(fusion_components) if fusion_components else 'INVALID'
+
+        self.publish_fusion_result(map_x, map_y, yaw, fusion_mode)
+
+        self.logger.debug(
+            f'Fusion | {fusion_mode} | '
+            f'Pos=({map_x:.3f}, {map_y:.3f}) | '
+            f'Yaw={math.degrees(yaw):.1f} deg'
+        )
 
         self._log_frequency_stats()
 
-    def publish_fusion_result(self, fusion_mode: str = 'unknown'):
-        """发布 map 位姿和 odom->base_link TF"""
-        # odom->base_link 应该在收到 odom 数据后立即发布，与 map_origin_set 解耦
-        # 只要有有效的 odom 数据就发布
-        self._publish_odom_to_base_link_tf()
-
+    def publish_fusion_result(self, map_x: float, map_y: float, yaw: float, fusion_mode: str = 'unknown'):
+        """发布 map 位姿"""
         # map_pose 发布需要 map_origin_set
         if not self.map_origin_set:
             return
 
-        with self.state_lock:
-            map_x = self.state.x
-            map_y = self.state.y
-            yaw = self.state.yaw
-
-        # 根据 gps_alpha 选择时间戳：
-        # - gps_alpha = 1: 完全相信 GPS，使用 GPS 时间戳
-        # - gps_alpha < 1: 使用 odom 时间戳（因为融合了 odom 传播的数据）
-        alpha = max(0.0, min(1.0, self.gps_alpha))
-
-        with self.sensor_lock:
-            gps_stamp = self.latest_sensor_data.gps_stamp
-            odom_stamp = self.latest_sensor_data.odom_stamp
-
-        if alpha >= 1.0:
-            # 完全相信 GPS，使用 GPS 时间戳
-            pose_stamp = self._sec_to_stamp(gps_stamp) if gps_stamp > 0 else self.get_clock().now().to_msg()
-        else:
-            # 使用 odom 时间戳
-            pose_stamp = self._sec_to_stamp(odom_stamp) if odom_stamp > 0 else self.get_clock().now().to_msg()
+        # 使用当前时间作为时间戳
+        pose_stamp = self.get_clock().now().to_msg()
 
         pose_msg = PoseStamped()
         pose_msg.header.stamp = pose_stamp
@@ -761,21 +770,37 @@ class EKFFusionNode(Node):
 
         self.map_pose_pub.publish(pose_msg)
 
-    def _publish_odom_to_base_link_tf(self):
+    def _publish_gps_pose(self, gps_x: float, gps_y: float, gps_yaw: float):
+        """发布 GPS 原始位姿（用于可视化对比）"""
+        pose_stamp = self.get_clock().now().to_msg()
+
+        pose_msg = PoseStamped()
+        pose_msg.header.stamp = pose_stamp
+        pose_msg.header.frame_id = 'map'
+
+        pose_msg.pose.position.x = gps_x
+        pose_msg.pose.position.y = gps_y
+        pose_msg.pose.position.z = 0.0
+
+        q = Quaternion()
+        q.x = 0.0
+        q.y = 0.0
+        q.z = math.sin(gps_yaw / 2.0)
+        q.w = math.cos(gps_yaw / 2.0)
+        pose_msg.pose.orientation = q
+
+        self.gps_pose_pub.publish(pose_msg)
+
+    def _publish_odom_to_base_link_tf(self, odom_pose_x: float, odom_pose_y: float, odom_pose_yaw: float, stamp: RosTime):
         """
         发布 odom -> base_link 动态 TF
 
-        从 /utildar/robot_odom 获取当前 odom 坐标系下的位置和朝向，
-        发布为 odom->base_link 的 TF 变换。
+        从 odom 回调接收到的位姿数据直接发布为 odom->base_link 的 TF 变换。
+        时间戳使用 odom 消息的时间戳以保持一致性。
         """
-        with self.sensor_lock:
-            odom_pose_x = self.latest_sensor_data.odom_pose_x
-            odom_pose_y = self.latest_sensor_data.odom_pose_y
-            odom_pose_yaw = self.latest_sensor_data.odom_pose_yaw
-
         # 构建 TF 变换
         t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.stamp = stamp
         t.header.frame_id = 'odom'
         t.child_frame_id = 'base_link'
 
@@ -792,29 +817,6 @@ class EKFFusionNode(Node):
 
         # 使用动态广播器发布
         self.dynamic_tf_broadcaster.sendTransform(t)
-
-    def initialize_from_sensors(self):
-        """用当前已有传感器数据初始化状态（可选）"""
-        current_time = self.get_clock().now().nanoseconds / 1e9
-
-        with self.sensor_lock:
-            sensor_data = self.latest_sensor_data
-
-        with self.state_lock:
-            if sensor_data.world_orientation_available and (current_time - self.last_world_orientation_time < self.world_orientation_timeout):
-                self.state.yaw = normalize_angle(sensor_data.world_orientation_yaw)
-                self.state.vyaw = sensor_data.world_orientation_yaw_rate
-                self.get_logger().info(
-                    f'Initialized yaw from world orientation: {math.degrees(self.state.yaw):.2f} deg'
-                )
-
-            if sensor_data.odom_available and (current_time - self.last_odom_time < self.odom_timeout):
-                self.state.vx = sensor_data.odom_vx
-                self.state.vy = sensor_data.odom_vy
-                self.state.vyaw = sensor_data.odom_vyaw
-                self.get_logger().info(
-                    f'Initialized velocity from ODOM: vx={self.state.vx:.3f}, vy={self.state.vy:.3f}, vyaw={self.state.vyaw:.3f}'
-                )
 
 
 def run_ekf_fusion_node(args=None):
@@ -835,8 +837,6 @@ def run_ekf_fusion_node(args=None):
         if current_time - start_time > timeout:
             break
         executor.spin_once(timeout_sec=0.1)
-
-    node.initialize_from_sensors()
 
     try:
         executor.spin()

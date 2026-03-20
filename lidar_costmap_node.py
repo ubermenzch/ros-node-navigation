@@ -815,17 +815,16 @@ class LidarCostmapNode(Node):
             cloud_stamp = self.latest_cloud_stamp
             cloud_frame_id = self.latest_cloud_frame_id if self.latest_cloud_frame_id else 'base_link'
 
-        # 时间戳失效检测
+        # 时间戳失效检测（仅记录日志，仍使用最新数据）
         now_sec = self.get_clock().now().nanoseconds / 1e9
         cloud_age = max(0.0, now_sec - cloud_stamp)
 
         if cloud_age > self.cloud_timeout:
             self._warn_throttled(
                 'stale_cloud',
-                f'Latest point cloud is stale: age={cloud_age:.3f}s > timeout={self.cloud_timeout:.3f}s, skip.',
+                f'Point cloud timeout: age={cloud_age:.3f}s > timeout={self.cloud_timeout:.3f}s, using stale data.',
                 1.0
             )
-            return
 
         # 4. 高度过滤
         t0 = time.perf_counter()

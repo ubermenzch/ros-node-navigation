@@ -6,17 +6,18 @@
 # ============================================================
 ekf_fusion_node:
   # 节点运行频率 (Hz)
-  frequency: 10.0 # 每次融合的时间步长dt由频率决定
+  frequency: 30.0 # 每次融合的时间步长dt由频率决定
 
   # ========== 订阅话题 ==========
   subscriptions:
-    gps_topic: "/rtk_fix" # 用于获取gps坐标
-    odom_topic: "/utlidar/robot_odom" # 用于获取里程计数据，frame_id=odom
-    world_orientation_topic: "/rtk_imu" # RTK 计算输出的世界系朝向话题
+    gps_topic: /rtk_fix # 用于获取gps坐标
+    odom_topic: /utlidar/robot_odom # 用于获取里程计数据，frame_id=odom
+    world_orientation_topic: /rtk_imu # RTK 计算输出的世界系朝向话题
 
   # ========== 发布话题 ==========
   publications:
-    map_pose_topic: "/navigation/map_pose"  # 地图坐标系定位,frame_id=map
+    map_pose_topic: /navigation/map_pose  # 地图坐标系定位,frame_id=map
+    gps_map_pose_topic: /navigation/gps_map_pose  # GPS原始位姿（用于可视化对比）,frame_id=map
     # map_origin_gps 不再发布（通过 TF 变换可知）
 
   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
@@ -29,51 +30,57 @@ ekf_fusion_node:
   #   - 位置融合: 控制 GPS 位置与 odom 传播位置的融合
   #   - 朝向融合: 控制世界系朝向与 odom 角速度积分的融合
   #   - 1.0 = 完全信任 GPS/世界系朝向, 0.0 = 完全信任 odom
-  gps_alpha: 0.30
+  gps_alpha: 0.0
   # 单次GPS跳变拒绝阈值（米），超过此值的GPS跳变将被忽略
-  gps_jump_reject: 2.5
+  gps_jump_reject: 999.0
   # 单次朝向跳变拒绝阈值（弧度），超过此值的朝向跳变将被忽略
-  yaw_jump_reject: 0.5  # 0.5弧度约28.6度
+  yaw_jump_reject: 999.0  # 0.5弧度约28.6度
+
+  # 启动时是否朝正东
+  # 当设为 true 时，机器人在启动时默认朝向正东，此时里程计 yaw=0 对应世界系 yaw=0
+  # 当设为 false 时，使用 world_orientation_topic 提供世界系朝向
+  # 该参数用于无法提供世界系朝向的情况，通过将里程计朝向当作世界系朝向来解决对齐问题
+  face_east_on_startup: true
 
   # 日志配置
   log_enabled: true
 
-# ============================================================
-# 规划器节点配置
-# ============================================================
-planner_node:
-  # ========== 订阅话题 ==========
-  subscriptions:
-    # 机器人里程计
-    robot_pose_topic: "/navigation/map_pose" #订阅机器人在地图坐标系中的坐标，frame_id=map
-    # 导航地图坐标（从 map_node 订阅）
-    nav_map_points_topic: "/navigation/nav_map_points" # 订阅航点在地图坐标系中的坐标，frame_id=map
+# # ============================================================
+# # 规划器节点配置
+# # ============================================================
+# planner_node:
+#   # ========== 订阅话题 ==========
+#   subscriptions:
+#     # 机器人里程计
+#     robot_pose_topic: "/navigation/map_pose" #订阅机器人在地图坐标系中的坐标，frame_id=map
+#     # 导航地图坐标（从 map_node 订阅）
+#     nav_map_points_topic: "/navigation/nav_map_points" # 订阅航点在地图坐标系中的坐标，frame_id=map
 
-  # ========== 发布话题 ==========
-  publications:
-    path_topic: "/navigation/planned_path" #发送规划路径。frame_id=base_link，消息类型为nav_msgs/Path
+#   # ========== 发布话题 ==========
+#   publications:
+#     path_topic: "/navigation/planned_path" #发送规划路径。frame_id=base_link，消息类型为nav_msgs/Path
 
-  # 工作频率 (Hz)
-  frequency: 5.0
+#   # 工作频率 (Hz)
+#   frequency: 5.0
 
-  # 时间戳超时时间 (秒)
-  pose_timeout: 0.2 # 机器人坐标超时时间
+#   # 时间戳超时时间 (秒)
+#   pose_timeout: 0.2 # 机器人坐标超时时间
 
-  # 到达判定阈值 (米)
-  arrival_threshold: 3.0
+#   # 到达判定阈值 (米)
+#   arrival_threshold: 3.0
 
-  # 稀疏化参数
-  # 相邻两个路点之间的最小距离（米），根据地图分辨率计算具体间隔的格子数
-  # 用于路径稀疏化，减少路点数量但保持路径的关键拐点
-  max_distance_between: 5.0
+#   # 稀疏化参数
+#   # 相邻两个路点之间的最小距离（米），根据地图分辨率计算具体间隔的格子数
+#   # 用于路径稀疏化，减少路点数量但保持路径的关键拐点
+#   max_distance_between: 5.0
 
-  # A*算法参数
-  # allow_diagonal: 控制是否允许对角线移动。
-  # false=只允许上下左右4方向移动，true=允许8方向（含对角线）
-  allow_diagonal: false
+#   # A*算法参数
+#   # allow_diagonal: 控制是否允许对角线移动。
+#   # false=只允许上下左右4方向移动，true=允许8方向（含对角线）
+#   allow_diagonal: false
 
-  # 日志配置
-  log_enabled: true
+#   # 日志配置
+#   log_enabled: true
 
 # ============================================================
 # 激光雷达Costmap节点配置
@@ -81,13 +88,13 @@ planner_node:
 lidar_costmap_node:
   # ========== 订阅话题 ==========
   subscriptions:
-    scan_topic: "/my_lidar"           # 获取激光雷达点云/livox/lidar，frame_id=livox_frame
+    scan_topic: /my_lidar           # 获取激光雷达点云/livox/lidar，frame_id=livox_frame
 
   # ========== 发布话题 ==========
   publications:
-    obs_output_topic: "/navigation/obs_min_d"          # 障碍物距离输出话题，用于给controller节点输入模型，frame_id=base_link
-    local_costmap_topic: "/navigation/local_costmap"   # 局部costmap输出（供地图节点更新地图）,frame_id=base_link
-    voxel_cloud_topic: "/navigation/voxel_cloud"
+    obs_output_topic: /navigation/obs_min_d          # 障碍物距离输出话题，用于给controller节点输入模型，frame_id=base_link
+    local_costmap_topic: /navigation/local_costmap   # 局部costmap输出（供地图节点更新地图）,frame_id=base_link
+    voxel_cloud_topic: /navigation/voxel_cloud
 
   # 扫描范围 (米)
   scan_range: 10.0
@@ -150,36 +157,80 @@ lidar_costmap_node:
 #   # 日志配置
 #   log_enabled: true
 
-# ============================================================
-# 地图节点配置
-# ============================================================
-map_node:
-  # ========== 订阅话题 ==========
-  subscriptions:
-    gps_path_topic: "/navigation_control"              # 下发的 GPS 导航路径,frame_id=gcj
-    map_pose_topic: "/navigation/map_pose"             # 机器人地图坐标（来自 ekf_fusion_node）,frame_id=map
-    local_costmap_topic: "/navigation/local_costmap"   # 接收局部costmap,frame_id=base_link
+map_planner_node:
+  # 地图生成参数
+  square_size: 20.0
+  road_width: 10.0
 
-  # ========== 发布话题 ==========
-  publications:
-    map_topic: "/navigation/map"                                  # 全局地图（供rviz2可视化和其他节点使用）,frame_id=map
-    map_update_topic: "/navigation/map_update"         # 地图增量更新（OccupancyGridUpdate）,frame_id=map
-    nav_map_points_topic: "/navigation/nav_map_points" # 导航地图坐标（供 planner_node 使用）,frame_id=map
+  # 膨胀参数
+  # 膨胀形状为正方形，边长 = inflation_margin * 2（米）
+  # 例如：inflation_margin=0.3，则膨胀正方形边长 = 0.6 米
+  inflation_margin: 0.3
 
-  # 工作频率 (Hz)
-  frequency: 10.0
+  # 地图发布频率 (Hz) - 用于定时发布完整地图
+  map_publish_frequency: 10.0
 
-  # 超时配置 (秒)
-  # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
-  map_pose_timeout: 1.0      # 机器人地图坐标超时时间
-  local_costmap_timeout: 0.5 # 局部costmap超时时间
+  # 超时参数
+  map_pose_timeout: 1.0
+  local_costmap_timeout: 0.3
+  pose_timeout: 2.0
+  utm_lookup_timeout: 1.0 #等待 utm 坐标变换就绪的超时时间
 
-  # 地图扩展参数
-  square_size: 10.0       # 地图扩展边界大小 (米)
-  road_width: 1.0         # 道路宽度 (米)
+  # 规划参数
+  max_distance_between: 4.0
+  allow_diagonal: false
+  arrival_threshold: 1.0
+  obstacle_threshold: 50
 
-  # 日志配置
+  # 规划参数
+
+  # 日志
   log_enabled: true
+
+  subscriptions:
+    gps_path_topic: /navigation_control
+    map_pose_topic: /navigation/map_pose
+    local_costmap_topic: /navigation/local_costmap
+
+  publications:
+    map_topic: /navigation/map
+    map_update_topic: /navigation/map_update
+    inflated_map_topic: /navigation/inflated_map       # 膨胀后的完整地图（首次生成后发布一次）
+    inflated_map_update_topic: /navigation/inflated_map_update  # 膨胀地图局部更新
+    nav_map_points_topic: /navigation/nav_map_points
+    path_topic: /navigation/planned_path           # base_link 坐标系，供 controller 使用
+    path_map_topic: /navigation/planned_path_map    # map 坐标系，供 rviz 可视化使用
+    
+# # ============================================================
+# # 地图节点配置
+# # ============================================================
+# map_node:
+#   # ========== 订阅话题 ==========
+#   subscriptions:
+#     gps_path_topic: /navigation_control              # 下发的 GPS 导航路径,frame_id=gcj
+#     map_pose_topic: /navigation/map_pose             # 机器人地图坐标（来自 ekf_fusion_node）,frame_id=map
+#     local_costmap_topic: /navigation/local_costmap   # 接收局部costmap,frame_id=base_link
+
+#   # ========== 发布话题 ==========
+#   publications:
+#     map_topic: /navigation/map                                  # 全局地图（供rviz2可视化和其他节点使用）,frame_id=map
+#     map_update_topic: /navigation/map_update         # 地图增量更新（OccupancyGridUpdate）,frame_id=map
+#     nav_map_points_topic: /navigation/nav_map_points # 导航地图坐标（供 planner_node 使用）,frame_id=map
+
+#   # 工作频率 (Hz)
+#   frequency: 10.0
+
+#   # 超时配置 (秒)
+#   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
+#   map_pose_timeout: 1.0      # 机器人地图坐标超时时间
+#   local_costmap_timeout: 0.5 # 局部costmap超时时间
+
+#   # 地图扩展参数
+#   square_size: 10.0       # 地图扩展边界大小 (米)
+#   road_width: 1.0         # 道路宽度 (米)
+
+#   # 日志配置
+#   log_enabled: true
 
 # ============================================================
 # 控制器节点配置
@@ -187,13 +238,13 @@ map_node:
 controller_node:
   # ========== 订阅话题 ==========
   subscriptions:
-    path_topic: "/navigation/planned_path"           # 路径话题（来自 planner_node）,frame_id=base_link
-    lidar_obs_topic: "/navigation/obs_min_d"         # 障碍物观测（来自 lidar_costmap_node）,frame_id=base_link
-    odom_topic: "/utlidar/robot_odom"               # 里程计,frame_id=odom (机器狗自带里程计)
+    path_topic: /navigation/planned_path           # 路径话题（来自 planner_node）,frame_id=base_link
+    lidar_obs_topic: /navigation/obs_min_d         # 障碍物观测（来自 lidar_costmap_node）,frame_id=base_link
+    odom_topic: /utlidar/robot_odom               # 里程计,frame_id=odom (机器狗自带里程计)
 
   # ========== 发布话题 ==========
   publications:
-    cmd_topic: "/cmd_vel"                # 控制指令
+    cmd_topic: /cmd_vel                # 控制指令
 
   # 超时配置 (秒)
   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
