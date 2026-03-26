@@ -44,44 +44,7 @@ ekf_fusion_node:
 
   # 日志配置
   log_enabled: true
-
-# # ============================================================
-# # 规划器节点配置
-# # ============================================================
-# planner_node:
-#   # ========== 订阅话题 ==========
-#   subscriptions:
-#     # 机器人里程计
-#     robot_pose_topic: "/navigation/map_pose" #订阅机器人在地图坐标系中的坐标，frame_id=map
-#     # 导航地图坐标（从 map_node 订阅）
-#     nav_map_points_topic: "/navigation/nav_map_points" # 订阅航点在地图坐标系中的坐标，frame_id=map
-
-#   # ========== 发布话题 ==========
-#   publications:
-#     path_topic: "/navigation/planned_path" #发送规划路径。frame_id=base_link，消息类型为nav_msgs/Path
-
-#   # 工作频率 (Hz)
-#   frequency: 5.0
-
-#   # 时间戳超时时间 (秒)
-#   pose_timeout: 0.2 # 机器人坐标超时时间
-
-#   # 到达判定阈值 (米)
-#   arrival_threshold: 3.0
-
-#   # 稀疏化参数
-#   # 相邻两个路点之间的最小距离（米），根据地图分辨率计算具体间隔的格子数
-#   # 用于路径稀疏化，减少路点数量但保持路径的关键拐点
-#   max_distance_between: 5.0
-
-#   # A*算法参数
-#   # allow_diagonal: 控制是否允许对角线移动。
-#   # false=只允许上下左右4方向移动，true=允许8方向（含对角线）
-#   allow_diagonal: false
-
-#   # 日志配置
-#   log_enabled: true
-
+  
 # ============================================================
 # 激光雷达Costmap节点配置
 # ============================================================
@@ -101,10 +64,10 @@ lidar_costmap_node:
 
   # 高度过滤 (米)
   min_height: -0.1             # -0.35，最低高度
-  max_height: 1.5              # 最高高度
+  max_height: 1.0              # 最高高度
 
   
-  voxel_size: 0.1 #体素尺寸
+  voxel_size: 0.2 #体素尺寸
   min_points_per_voxel: 1 #最小点数阈值
 
   # 工作频率 (Hz)
@@ -123,71 +86,39 @@ lidar_costmap_node:
   # 日志配置
   log_enabled: true
 
-# # ============================================================
-# # Odom节点配置
-# # ============================================================
-# odom_node:
-#   # ========== 订阅话题 ==========
-#   subscriptions:
-#     old_odom_topic: "/utlidar/robot_odom"   # 旧odom（机器狗开机自启动）,frame_id=odom
-#     gps_topic: "/rtk_fix"                   # RTK GPS,frame_id=gcj
-#     map_origin_gps_topic: "/navigation/map_origin_gps"  # 地图原点GPS（来自map_node）,frame_id=gcj
-
-#   # ========== 发布话题 ==========
-#   publications:
-#     new_odom_topic: "/navigation/new_odom"  # 新odom（原点为main.py启动时GPS）,frame_id=odom
-#     new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（供tf_publisher使用）,frame_id=gcj
-
-#   # 日志配置
-#   log_enabled: true
-
-# # ============================================================
-# # TF发布节点配置
-# # ============================================================
-# tf_publisher:
-#   # URDF 文件路径
-#   urdf_path: "/home/unitree/navigation_system/URDF/GO2_URDF/urdf/go2_description.urdf"
-
-#   # 订阅话题
-#   subscriptions:
-#     map_origin_gps_topic: "/navigation/map_origin_gps"      # 地图原点GPS（来自map_node）,frame_id=gcj
-#     new_odom_origin_gps_topic: "/navigation/new_odom_origin_gps"  # 新odom原点GPS（来自odom_node）,frame_id=gcj
-#     new_odom_topic: "/navigation/new_odom"    # 新odom（来自odom_node）,frame_id=odom
-
-#   # 日志配置
-#   log_enabled: true
-
 map_planner_node:
   # 地图生成参数
+  # square_size: 在机器人位置和所有航点边界的基础上，向外扩展的边距（米）
+  #              用于确保地图有足够的空间，公式: min_x = min(all_points) - square_size
   square_size: 20.0
-  road_width: 10.0
+  # road_width: 道路的有效通行宽度（米），用于在地图上绘制道路区域
+  #             机器人将沿此宽度范围内的路径行驶
+  road_width: 40.0
+  # - 每隔 road_sample_step 米在路径上采样一个点
+  # - 以每个采样点为中心画圆形区域（半径 = road_width / 2）
+  # - 圆形区域内的栅格设为空闲 (0)，外部保持原值
+  road_sample_step: 1.0 #单位m
 
   # 膨胀参数
   # 膨胀形状为正方形，边长 = inflation_margin * 2（米）
   # 例如：inflation_margin=0.3，则膨胀正方形边长 = 0.6 米
-  inflation_margin: 0.3
+  inflation_margin: 0.2 #单位m
 
-  # 地图发布频率 (Hz) - 用于定时发布完整地图
-  map_publish_frequency: 5.0
-  
   # 地图发布方式
   # true = 每次局部更新都发送完整 OccupancyGrid
   # false = 发送 OccupancyGridUpdate 增量更新
   publish_full_map: true
   
-  map_pose_queue_max_age: 0.5
-  #是否开启膨胀地图功能
-  inflation_enabled: true 
+  inflation_enabled: false 
   # 超时参数
   map_pose_timeout: 1.0
   local_costmap_timeout: 0.3
-  pose_timeout: 2.0
-  utm_lookup_timeout: 1.0 #等待 utm 坐标变换就绪的超时时间
 
   # 规划参数
-  max_distance_between: 4.0
+  max_distance_between: 3.0
   allow_diagonal: false
-  arrival_threshold: 1.0
+  arrival_threshold: 2.0
+  arrival_check_frequency: 2.0  # 航点到达检查频率 (Hz)
   obstacle_threshold: 50
 
   # 规划参数
@@ -209,37 +140,6 @@ map_planner_node:
     path_topic: /navigation/planned_path           # base_link 坐标系，供 controller 使用
     path_map_topic: /navigation/planned_path_map    # map 坐标系，供 rviz 可视化使用
     
-# # ============================================================
-# # 地图节点配置
-# # ============================================================
-# map_node:
-#   # ========== 订阅话题 ==========
-#   subscriptions:
-#     gps_path_topic: /navigation_control              # 下发的 GPS 导航路径,frame_id=gcj
-#     map_pose_topic: /navigation/map_pose             # 机器人地图坐标（来自 ekf_fusion_node）,frame_id=map
-#     local_costmap_topic: /navigation/local_costmap   # 接收局部costmap,frame_id=base_link
-
-#   # ========== 发布话题 ==========
-#   publications:
-#     map_topic: /navigation/map                                  # 全局地图（供rviz2可视化和其他节点使用）,frame_id=map
-#     map_update_topic: /navigation/map_update         # 地图增量更新（OccupancyGridUpdate）,frame_id=map
-#     nav_map_points_topic: /navigation/nav_map_points # 导航地图坐标（供 planner_node 使用）,frame_id=map
-
-#   # 工作频率 (Hz)
-#   frequency: 10.0
-
-#   # 超时配置 (秒)
-#   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
-#   map_pose_timeout: 1.0      # 机器人地图坐标超时时间
-#   local_costmap_timeout: 0.5 # 局部costmap超时时间
-
-#   # 地图扩展参数
-#   square_size: 10.0       # 地图扩展边界大小 (米)
-#   road_width: 1.0         # 道路宽度 (米)
-
-#   # 日志配置
-#   log_enabled: true
-
 # ============================================================
 # 控制器节点配置
 # ============================================================
@@ -256,62 +156,32 @@ controller_node:
 
   # 超时配置 (秒)
   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
-  path_timeout: 0.5          # 路径超时时间
-  lidar_obs_timeout: 0.3     # 障碍物观测超时时间
-  odom_timeout: 0.2           # 里程计超时时间
+  path_timeout: 999          # 路径超时时间
+  lidar_obs_timeout: 999     # 障碍物观测超时时间
+  odom_timeout: 999           # 里程计超时时间
 
   # 模型配置
-  model_path: "models/SAC_actor.pth"  # PyTorch 模型路径
+  model_path: "models/ETH25/SAC_actor.pth"  # PyTorch 模型路径
 
   # 控制参数
   max_v: 1.0                             # 最大线速度 (m/s)
   max_w: 1.0                             # 最大角速度 (rad/s)
 
   # 工作频率 (Hz)
-  frequency: 5.0
+  frequency: 10.0
 
   # 日志配置
   log_enabled: true
-
-# # ============================================================
-# # 雷达360度融合节点配置
-# # ============================================================
-# lidar_360_fusion_node:
-#   # 订阅话题
-#   scan_topic: "/utlidar/cloud_deskewed"   # deskewed后的雷达点云
-#   imu_topic: "/imu/data"                  # IMU数据
-
-#   # 发布话题
-#   output_topic: "/utlidar/cloud_360"      # 360度融合点云
-
-#   # 累积帧数 (根据雷达转速调整)
-#   # 雷达转速约259度/秒，15.4Hz，每帧约16.86度
-#   # 需要21帧才能覆盖360度
-#   num_frames_to_accumulate: 21
-
-#   # 雷达旋转速度 (度/秒)，从LidarState获取
-#   rotation_speed: 259.4
-
-#   # 雷达扫描周期 (秒)
-#   scan_period: 0.065
-
-#   # 距离过滤 (米)
-#   min_distance: 0.1
-#   max_distance: 100.0
-
-#   # 超时设置 (秒)
-#   pointcloud_timeout: 0.5
-#   imu_timeout: 1.0  # 增加IMU超时时间
 
 # ============================================================
 # 通用配置
 # ============================================================
 common:
   # 地图分辨率 (米/格) - map_node 和 lidar_costmap_node 共用
-  resolution: 0.25
+  resolution: 0.2
 
   # ============================================================
   # 测试模式配置
   # ============================================================
   # 开启测试模式时不启动 controller_node，由遥控器手动控制机器人
-  test_mode: true
+  test_mode: false

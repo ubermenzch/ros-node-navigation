@@ -109,16 +109,17 @@ class MapPlannerNode(Node):
         # 地图生成参数
         self.square_size = float(node_config.get('square_size', 20.0))
         self.road_width = float(node_config.get('road_width', 1.0))
+        self.road_sample_step = float(node_config.get('road_sample_step', 0.025))
 
         # 规划参数
-        self.map_publish_frequency = float(node_config.get('map_publish_frequency', 10.0))
         self.publish_full_map = bool(node_config.get('publish_full_map', True))
         self.map_pose_timeout = float(node_config.get('map_pose_timeout', 1.0))
         self.local_costmap_timeout = float(node_config.get('local_costmap_timeout', 0.3))
-        self.pose_timeout = float(node_config.get('pose_timeout', 2.0))
         self.max_distance_between = float(node_config.get('max_distance_between', 0.5))
         self.allow_diagonal = bool(node_config.get('allow_diagonal', False))
         self.arrival_threshold = float(node_config.get('arrival_threshold', 1.0))
+        arrival_check_frequency = float(node_config.get('arrival_check_frequency', 2.0))
+        self.arrival_check_interval = 1.0 / arrival_check_frequency if arrival_check_frequency > 0 else 0.5
         self.obstacle_threshold = int(node_config.get('obstacle_threshold', 50))
 
         # 膨胀参数（用于膨胀地图和规划，单位：米）
@@ -128,7 +129,7 @@ class MapPlannerNode(Node):
         if self.inflation_radius_cells <= 0:
             self.inflation_enabled = False
             self.logger.info('Inflation disabled: inflation_radius_cells <= 0')
-        self.utm_lookup_timeout = float(node_config.get('utm_lookup_timeout', 1.0))
+        self.utm_lookup_timeout = 1.0
 
         # 话题
         self.gps_path_topic = subscriptions.get('gps_path_topic', '/navigation_control')
@@ -155,7 +156,6 @@ class MapPlannerNode(Node):
 
         # 位姿状态 - 使用队列缓存 map_pose，按时间戳匹配 local_costmap
         self.map_pose_queue: deque = deque(maxlen=100)  # 最多缓存100条 pose
-        self.map_pose_queue_max_age = float(node_config.get('map_pose_queue_max_age', 2.0))
 
         # 路径任务状态
         self.nav_gps_points: List[dict] = []
@@ -210,13 +210,14 @@ class MapPlannerNode(Node):
         # 频率统计（统计 local_costmap_callback 执行频率）
         self.map_freq_stats = FrequencyStats(
             node_name='map_planner_node_map',
-            target_frequency=self.map_publish_frequency,
             logger=self.logger,
             ros_logger=self.get_logger(),
             window_size=10,
-            warn_threshold=0.8,
             log_interval=5.0
         )
+
+        # 初始化航点到达检查定时器
+        self._init_arrival_check_timer()
 
         init_info = [
             'MapPlanner Node initialized',
@@ -234,6 +235,8 @@ class MapPlannerNode(Node):
             f'  膨胀余量: {self.inflation_margin}m',
             f'  膨胀形状: 正方形（边长={self.inflation_margin * 2:.2f}m）',
             f'  膨胀地图功能: {"开启" if self.inflation_enabled else "关闭"}',
+            f'  航点到达阈值: {self.arrival_threshold}m',
+            f'  航点检查间隔: {self.arrival_check_interval}s',
             f'  运行模式: 事件驱动 (local_costmap 触发规划)',
             f'  地图发布方式: {"完整 OccupancyGrid" if self.publish_full_map else "OccupancyGridUpdate 增量"}',
         ]
@@ -462,8 +465,8 @@ class MapPlannerNode(Node):
             return
 
         current_nanos = TimeUtils.now_nanos()
-        max_age_nanos = self.map_pose_queue_max_age * 1e9
-        cutoff_time = current_nanos - max_age_nanos
+        timeout_nanos = self.map_pose_timeout * 1e9
+        cutoff_time = current_nanos - timeout_nanos
 
         # 从队首移除所有超时的 pose
         while self.map_pose_queue and self.map_pose_queue[0]['timestamp'] < cutoff_time:
@@ -729,21 +732,73 @@ class MapPlannerNode(Node):
         metadata: MapMetadata,
         path_points: List[Tuple[float, float]]
     ):
-        """根据路径点在栅格图上画道路（道路内置为 0，外部保持 100）"""
+        """
+        根据路径点在栅格图上画道路
+        - 每隔 road_sample_step 米在路径上采样一个点
+        - 以每个采样点为中心画圆形区域（半径 = road_width / 2）
+        - 圆形区域内的栅格设为空闲 (0)，外部保持原值
+        """
         if not path_points:
             return
 
         dense_points = self.interpolate_polyline(
             path_points,
-            step=max(self.resolution * 0.5, 0.05)
+            step=max(self.road_sample_step, self.resolution * 0.5)
         )
 
         radius_cells = max(1, int(math.ceil((self.road_width * 0.5) / metadata.resolution)))
+        radius_sq = radius_cells * radius_cells
 
-        for x, y in dense_points:
-            gx, gy = self.world_to_grid(x, y, metadata)
-            if self.is_inside_grid(gx, gy, metadata):
-                self.stamp_circle_free(grid, gx, gy, radius_cells)
+        if len(dense_points) == 0:
+            return
+
+        # 向量化：将所有点一次性转换为栅格坐标
+        pts = np.array(dense_points, dtype=np.float64)
+        gx_all = np.floor((pts[:, 0] - metadata.origin_x) / metadata.resolution).astype(np.int32)
+        gy_all = np.floor((pts[:, 1] - metadata.origin_y) / metadata.resolution).astype(np.int32)
+
+        h, w = grid.shape
+
+        # 边界筛选
+        valid = (gx_all >= 0) & (gx_all < w) & (gy_all >= 0) & (gy_all < h)
+        gx_all = gx_all[valid]
+        gy_all = gy_all[valid]
+
+        if len(gx_all) == 0:
+            return
+
+        # 计算道路覆盖范围（矩形膨胀 + 圆形约束）
+        min_gx = gx_all.min() - radius_cells
+        max_gx = gx_all.max() + radius_cells
+        min_gy = gy_all.min() - radius_cells
+        max_gy = gy_all.max() + radius_cells
+
+        # 裁剪到地图范围
+        x0 = max(0, min_gx)
+        x1 = min(w - 1, max_gx)
+        y0 = max(0, min_gy)
+        y1 = min(h - 1, max_gy)
+
+        if x0 > x1 or y0 > y1:
+            return
+
+        # 构建局部坐标网格
+        sub_w = x1 - x0 + 1
+        sub_h = y1 - y0 + 1
+        cols, rows = np.meshgrid(
+            np.arange(x0, x1 + 1, dtype=np.int32),
+            np.arange(y0, y1 + 1, dtype=np.int32)
+        )
+
+        # 计算每个局部格到最近道路点的距离平方（向量化最近点查找）
+        road_grid_x = gx_all[:, np.newaxis, np.newaxis]  # (N, 1, 1)
+        road_grid_y = gy_all[:, np.newaxis, np.newaxis]  # (N, 1, 1)
+        dist_sq = (cols - road_grid_x) ** 2 + (rows - road_grid_y) ** 2  # (N, sub_h, sub_w)
+        min_dist_sq = dist_sq.min(axis=0)  # (sub_h, sub_w)
+
+        # 标记道路区域：距离在 radius_cells 以内的设为 0
+        road_mask = min_dist_sq <= radius_sq
+        grid[y0:y1 + 1, x0:x1 + 1][road_mask] = 0
 
     def generate_map_and_nav_points(self) -> bool:
         """根据当前 GPS 航点生成全局地图，并计算导航 map 点"""
@@ -834,12 +889,6 @@ class MapPlannerNode(Node):
         # 使用“机器人当前位置 + 航点”连成路
         full_path = [(robot_map_x, robot_map_y)] + [(p['x'], p['y']) for p in nav_map_points]
         self.draw_road_on_grid(grid, metadata, full_path)
-
-        # 确保机器人与各航点所在格也是空闲
-        for x, y in full_path:
-            gx, gy = self.world_to_grid(x, y, metadata)
-            if self.is_inside_grid(gx, gy, metadata):
-                grid[gy, gx] = 0
 
         self.map_data = grid
         self.map_metadata = metadata
@@ -976,8 +1025,8 @@ class MapPlannerNode(Node):
 
         height, width = local_costmap.shape
 
-        # 只处理 known 格子
-        known_mask = (local_costmap >= 0)
+        # 只处理已知格子（0 或 100），跳过 -1（未知）
+        known_mask = (local_costmap == 0) | (local_costmap == 100)
         if not np.any(known_mask):
             return (False, None)
 
@@ -1012,25 +1061,38 @@ class MapPlannerNode(Node):
         gy = gy[inside]
         vals = vals[inside]
 
-        # 处理 many-to-one 冲突：多个局部格映射到同一全局格
-        # 规则 A：保守型，障碍优先（取最大值）
-        flat_idx = gy * metadata.width + gx
-        order = np.argsort(flat_idx)
-        flat_idx_sorted = flat_idx[order]
-        vals_sorted = vals[order]
+        # 处理 many-to-one 冲突，但只在“本次 local_costmap 映射结果内部”归并
+        # 语义：
+        # - local_costmap 中 -1 已经过滤，不参与覆盖
+        # - 若某个全局格被本次多个局部格命中：
+        #     * 只要有一个 100，则该格写 100
+        #     * 否则写 0
+        # - 然后把归并结果直接覆盖到全局地图，不与旧值取 max
 
-        unique_idx, start_idx = np.unique(flat_idx_sorted, return_index=True)
-        agg_vals = np.maximum.reduceat(vals_sorted, start_idx)
+        flat_idx = gy.astype(np.int64) * metadata.width + gx.astype(np.int64)
 
-        gy_u = unique_idx // metadata.width
-        gx_u = unique_idx % metadata.width
+        unique_flat, inverse = np.unique(flat_idx, return_inverse=True)
 
-        self.map_data[gy_u, gx_u] = agg_vals
+        # 本次更新里，同一目标格是否命中过障碍
+        has_obstacle = np.zeros(len(unique_flat), dtype=bool)
+        np.logical_or.at(has_obstacle, inverse, vals == 100)
 
-        min_col = int(gx_u.min())
-        max_col = int(gx_u.max())
-        min_row = int(gy_u.min())
-        max_row = int(gy_u.max())
+        # 归并后的写回值：有障碍则 100，否则 0
+        merged_vals = np.zeros(len(unique_flat), dtype=np.int8)
+        merged_vals[has_obstacle] = 100
+
+        # 还原为二维索引
+        merged_gx = (unique_flat % metadata.width).astype(np.int32)
+        merged_gy = (unique_flat // metadata.width).astype(np.int32)
+
+        # 直接覆盖写回
+        self.map_data[merged_gy, merged_gx] = merged_vals
+
+
+        min_col = int(gx.min())
+        max_col = int(gx.max())
+        min_row = int(gy.min())
+        max_row = int(gy.max())
         update_box = (min_col, min_row, max_col, max_row)
 
         # 调试：发布包围盒区域的全分辨率地图
@@ -1046,7 +1108,7 @@ class MapPlannerNode(Node):
         inflation_radius: int
     ) -> np.ndarray:
         """
-        对地图进行正方形膨胀（优化版：只遍历障碍物点）
+        对地图进行正方形膨胀（NumPy向量化优化版 - O(h*w)复杂度）
 
         Args:
             map_data: 原始地图数据，shape=(height, width)
@@ -1058,27 +1120,51 @@ class MapPlannerNode(Node):
         if inflation_radius <= 0:
             return map_data.copy()
 
-        inflated = map_data.copy()
         h, w = map_data.shape
+        r = inflation_radius
 
-        # 找到所有障碍物点（使用 obstacle_threshold 判断）
-        obstacle_mask = map_data >= self.obstacle_threshold
+        # 创建障碍物二值掩码
+        obstacle_mask = (map_data >= self.obstacle_threshold).astype(np.uint8)
+
+        if np.sum(obstacle_mask) == 0:
+            return map_data.copy()
+
+        # 使用累积和算法实现高效的矩形区域膨胀
+        # 原理：对每个障碍物点，用差分数组标记其膨胀区域，
+        # 然后通过两次累加（水平和垂直）得到最终掩码
+        diff = np.zeros((h + 2, w + 2), dtype=np.int8)
+
+        # 获取障碍物坐标
         obstacle_coords = np.argwhere(obstacle_mask)
 
         if len(obstacle_coords) == 0:
-            return inflated
+            return map_data.copy()
 
-        # 对每个障碍物点，标记其膨胀区域（带边界检查）
-        half = inflation_radius
+        # 向量化：一次性计算所有障碍物的膨胀边界
+        oy_all = obstacle_coords[:, 0]  # 行索引 (y方向)
+        ox_all = obstacle_coords[:, 1]  # 列索引 (x方向)
 
-        for oy, ox in obstacle_coords:
-            # 计算膨胀区域边界（带越界检查）
-            x0 = max(0, ox - half)
-            x1 = min(w - 1, ox + half)
-            y0 = max(0, oy - half)
-            y1 = min(h - 1, oy + half)
+        x0_all = np.maximum(0, ox_all - r)
+        x1_all = np.minimum(w - 1, ox_all + r)
+        y0_all = np.maximum(0, oy_all - r)
+        y1_all = np.minimum(h - 1, oy_all + r)
 
-            inflated[y0:y1 + 1, x0:x1 + 1] = 100  # OccupancyGrid 标准：100 = 障碍
+        # 向量化更新差分数组的四个角
+        diff[y0_all + 1, x0_all + 1] += 1
+        diff[y0_all + 1, x1_all + 2] -= 1
+        diff[y1_all + 2, x0_all + 1] -= 1
+        diff[y1_all + 2, x1_all + 2] += 1
+
+        # 水平方向累加
+        cumsum_h = np.cumsum(diff, axis=1)
+        # 垂直方向累加
+        cumsum_v = np.cumsum(cumsum_h, axis=0)
+
+        # 提取有效区域并转换为布尔掩码
+        inflated_mask = cumsum_v[1:h + 1, 1:w + 1] > 0
+
+        inflated = map_data.copy()
+        inflated[inflated_mask] = 100
 
         return inflated
 
@@ -1105,7 +1191,8 @@ class MapPlannerNode(Node):
         origin_pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
         grid_msg.info.origin = origin_pose
 
-        grid_msg.data = self.inflated_map_data.flatten().tolist()
+        # 使用 ravel() 而非 flatten()：避免不必要的内存拷贝
+        grid_msg.data = self.inflated_map_data.ravel().tolist()
         return grid_msg
 
     def update_inflated_map_from_bbox(
@@ -1220,7 +1307,8 @@ class MapPlannerNode(Node):
         grid_msg.info.origin = origin_pose
 
         # map内部存储方向已经与 OccupancyGrid 一致
-        grid_msg.data = self.map_data.flatten().tolist()
+        # 使用 ravel() 而非 flatten()：ravel 返回视图（连续时）或浅拷贝，开销更小
+        grid_msg.data = self.map_data.ravel().tolist()
         return grid_msg
 
     def publish_map_update(
@@ -1292,7 +1380,7 @@ class MapPlannerNode(Node):
         planning_map: Optional[np.ndarray] = None
     ) -> Optional[Tuple[int, int]]:
         """
-        若起点或终点落在障碍物上，则搜索最近可行点。
+        若起点或终点落在障碍物上，则搜索最近可行点（BFS优化版）。
 
         Args:
             cell: 目标格子坐标 (gx, gy)
@@ -1306,40 +1394,38 @@ class MapPlannerNode(Node):
         if not self._has_map():
             return None
 
-        # 使用传入的地图，若未传入则使用膨胀地图
         check_map = planning_map if planning_map is not None else self.inflated_map_data
         if check_map is None:
             return None
 
         cx, cy = cell
 
-        # 首先检查给定点本身是否可通过
-        # 可通过 = 值 < obstacle_threshold
         if 0 <= cx < width and 0 <= cy < height:
             if check_map[cy, cx] < self.obstacle_threshold:
                 return cell
 
-        best = None
-        best_dist = float('inf')
+        visited = set()
+        queue = deque([(cx, cy, 0)])
+        visited.add((cx, cy))
 
-        for r in range(1, max_radius + 1):
-            x0 = max(0, cx - r)
-            x1 = min(width - 1, cx + r)
-            y0 = max(0, cy - r)
-            y1 = min(height - 1, cy + r)
+        while queue:
+            x, y, dist = queue.popleft()
+            if dist > max_radius:
+                continue
 
-            for yy in range(y0, y1 + 1):
-                for xx in range(x0, x1 + 1):
-                    # 障碍物 = 值 >= obstacle_threshold，跳过障碍物
-                    if check_map[yy, xx] >= self.obstacle_threshold:
-                        continue
-                    dist = math.hypot(xx - cx, yy - cy)
-                    if dist < best_dist:
-                        best_dist = dist
-                        best = (xx, yy)
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                nx, ny = x + dx, y + dy
+                if (nx, ny) in visited:
+                    continue
+                if not (0 <= nx < width and 0 <= ny < height):
+                    continue
 
-            if best is not None:
-                return best
+                visited.add((nx, ny))
+
+                if check_map[ny, nx] < self.obstacle_threshold:
+                    return (nx, ny)
+
+                queue.append((nx, ny, dist + 1))
 
         return None
 
@@ -1353,7 +1439,7 @@ class MapPlannerNode(Node):
         planning_map: Optional[np.ndarray] = None
     ) -> Optional[List[Tuple[int, int]]]:
         """
-        A* 路径规划（在指定地图上规划，移除矩形碰撞检测）
+        A* 路径规划（支持双向 A* 优化，适用于长距离路径）
 
         Args:
             planning_map: 用于规划的地图（膨胀地图或原始地图）
@@ -1365,7 +1451,6 @@ class MapPlannerNode(Node):
             self.logger.warning('Map not ready for planning')
             return None
 
-        # 使用传入的地图，若未传入则使用膨胀地图
         check_map = planning_map if planning_map is not None else self.inflated_map_data
         if check_map is None:
             self.logger.warning('Planning map not available')
@@ -1381,68 +1466,158 @@ class MapPlannerNode(Node):
             moves = [(0, 1), (1, 0), (0, -1), (-1, 0)]
             move_costs = [1.0, 1.0, 1.0, 1.0]
 
-        # 检查起点（障碍 = 值 >= obstacle_threshold）
         if check_map[start[1], start[0]] >= self.obstacle_threshold:
             self.logger.warning('Start position collides with obstacle')
             return None
 
-        # 检查终点（障碍 = 值 >= obstacle_threshold）
         if check_map[goal[1], goal[0]] >= self.obstacle_threshold:
             self.logger.warning('Goal position collides with obstacle')
             return None
 
-        open_set = []
-        heapq.heappush(open_set, (0.0, start))
-        came_from = {}
-        g_score = {start: 0.0}
-        closed_set = set()
+        if start == goal:
+            return [start]
 
-        while open_set:
-            _, current = heapq.heappop(open_set)
+        return self._bidirectional_astar(start, goal, width, height, moves, move_costs, check_map)
 
-            if current in closed_set:
-                continue
+    def _bidirectional_astar(
+        self,
+        start: Tuple[int, int],
+        goal: Tuple[int, int],
+        width: int,
+        height: int,
+        moves: List[Tuple[int, int]],
+        move_costs: List[float],
+        check_map: np.ndarray
+    ) -> Optional[List[Tuple[int, int]]]:
+        """双向 A* 实现"""
 
-            if current == goal:
-                path = []
-                while current in came_from:
-                    path.append(current)
-                    current = came_from[current]
-                path.append(start)
-                path.reverse()
-                return path
+        # Forward search (from start to goal)
+        fwd_open = []
+        heapq.heappush(fwd_open, (0.0, start))
+        fwd_g = {start: 0.0}
+        fwd_came_from = {start: None}
+        fwd_closed = set()
 
-            closed_set.add(current)
+        # Backward search (from goal to start)
+        bwd_open = []
+        heapq.heappush(bwd_open, (0.0, goal))
+        bwd_g = {goal: 0.0}
+        bwd_came_from = {goal: None}
+        bwd_closed = set()
 
-            for move, move_cost in zip(moves, move_costs):
-                nx = current[0] + move[0]
-                ny = current[1] + move[1]
+        allow_diagonal = len(moves) > 4
+        best_path = None
+        best_estimate = float('inf')
 
-                if nx < 0 or nx >= width or ny < 0 or ny >= height:
+        while fwd_open or bwd_open:
+            if fwd_open and bwd_open:
+                fwd_f = fwd_open[0][0]
+                bwd_f = bwd_open[0][0]
+                if best_path is not None and min(fwd_f, bwd_f) >= best_estimate:
+                    break
+
+            if fwd_open:
+                fwd_f, fwd_current = heapq.heappop(fwd_open)
+                if fwd_current in fwd_closed:
                     continue
+                fwd_closed.add(fwd_current)
 
-                # 检查该点是否为障碍（障碍 = 值 >= obstacle_threshold）
-                if check_map[ny, nx] >= self.obstacle_threshold:
-                    continue
+                if fwd_current in bwd_g:
+                    total = fwd_g[fwd_current] + bwd_g[fwd_current]
+                    if best_path is None or total < best_estimate:
+                        best_estimate = total
+                        best_path = self._reconstruct_bidirectional_path(
+                            fwd_came_from, bwd_came_from, fwd_current
+                        )
 
-                # 对角线移动时，检查两个相邻格子是否为空闲（防止穿过角落）
-                if allow_diagonal and move[0] != 0 and move[1] != 0:
-                    if check_map[current[1] + move[1], current[0]] >= self.obstacle_threshold or \
-                       check_map[current[1], current[0] + move[0]] >= self.obstacle_threshold:
+                for move, move_cost in zip(moves, move_costs):
+                    nx, ny = fwd_current[0] + move[0], fwd_current[1] + move[1]
+                    if not (0 <= nx < width and 0 <= ny < height):
+                        continue
+                    if check_map[ny, nx] >= self.obstacle_threshold:
+                        continue
+                    if allow_diagonal and move[0] != 0 and move[1] != 0:
+                        if check_map[fwd_current[1] + move[1], fwd_current[0]] >= self.obstacle_threshold or \
+                           check_map[fwd_current[1], fwd_current[0] + move[0]] >= self.obstacle_threshold:
+                            continue
+
+                    neighbor = (nx, ny)
+                    if neighbor in fwd_closed:
                         continue
 
-                neighbor = (nx, ny)
-                if neighbor in closed_set:
+                    tentative_g = fwd_g[fwd_current] + move_cost
+                    if neighbor not in fwd_g or tentative_g < fwd_g[neighbor]:
+                        fwd_g[neighbor] = tentative_g
+                        fwd_came_from[neighbor] = fwd_current
+                        h = self.heuristic(neighbor, goal)
+                        heapq.heappush(fwd_open, (tentative_g + h, neighbor))
+
+            if bwd_open:
+                bwd_f, bwd_current = heapq.heappop(bwd_open)
+                if bwd_current in bwd_closed:
+                    continue
+                bwd_closed.add(bwd_current)
+
+                if bwd_current in fwd_g:
+                    total = fwd_g[bwd_current] + bwd_g[bwd_current]
+                    if best_path is None or total < best_estimate:
+                        best_estimate = total
+                        best_path = self._reconstruct_bidirectional_path(
+                            fwd_came_from, bwd_came_from, bwd_current
+                        )
+
+                if best_path is not None and bwd_f >= best_estimate:
                     continue
 
-                tentative_g = g_score[current] + move_cost
-                if neighbor not in g_score or tentative_g < g_score[neighbor]:
-                    came_from[neighbor] = current
-                    g_score[neighbor] = tentative_g
-                    f = tentative_g + self.heuristic(neighbor, goal)
-                    heapq.heappush(open_set, (f, neighbor))
+                # Reverse moves for backward search
+                for move, move_cost in zip(moves, move_costs):
+                    nx, ny = bwd_current[0] + move[0], bwd_current[1] + move[1]
+                    if not (0 <= nx < width and 0 <= ny < height):
+                        continue
+                    if check_map[ny, nx] >= self.obstacle_threshold:
+                        continue
+                    if allow_diagonal and move[0] != 0 and move[1] != 0:
+                        if check_map[bwd_current[1] + move[1], bwd_current[0]] >= self.obstacle_threshold or \
+                           check_map[bwd_current[1], bwd_current[0] + move[0]] >= self.obstacle_threshold:
+                            continue
 
-        return None
+                    neighbor = (nx, ny)
+                    if neighbor in bwd_closed:
+                        continue
+
+                    tentative_g = bwd_g[bwd_current] + move_cost
+                    if neighbor not in bwd_g or tentative_g < bwd_g[neighbor]:
+                        bwd_g[neighbor] = tentative_g
+                        bwd_came_from[neighbor] = bwd_current
+                        h = self.heuristic(neighbor, start)
+                        heapq.heappush(bwd_open, (tentative_g + h, neighbor))
+
+        return best_path
+
+    def _reconstruct_bidirectional_path(
+        self,
+        fwd_came_from: dict,
+        bwd_came_from: dict,
+        meeting_node: Tuple[int, int]
+    ) -> List[Tuple[int, int]]:
+        """从双向搜索的交汇点重建路径"""
+        # Forward path: start -> meeting_node
+        forward_path = []
+        node = meeting_node
+        while node is not None:
+            forward_path.append(node)
+            node = fwd_came_from.get(node)
+
+        forward_path.reverse()
+
+        # Backward path: meeting_node -> goal (skip meeting_node)
+        backward_path = []
+        node = bwd_came_from.get(meeting_node)
+        while node is not None:
+            backward_path.append(node)
+            node = bwd_came_from.get(node)
+
+        return forward_path + backward_path
 
     def sparsify_path(self, path: List[Tuple[int, int]], max_cells: int) -> List[Tuple[int, int]]:
         """
@@ -1479,8 +1654,8 @@ class MapPlannerNode(Node):
                 self.logger.warning('No valid robot pose, cannot publish planned path')
                 return
             pose_time_diff = abs(pose['timestamp'] - target_nanos) / 1e9
-            if pose_time_diff > self.pose_timeout:
-                self.logger.warning(f'Robot pose time diff too large: {pose_time_diff:.3f}s > {self.pose_timeout:.3f}s')
+            if pose_time_diff > self.map_pose_timeout:
+                self.logger.warning(f'Robot pose time diff too large: {pose_time_diff:.3f}s > {self.map_pose_timeout:.3f}s')
                 return
         else:
             pose = self.latest_map_pose
@@ -1560,43 +1735,39 @@ class MapPlannerNode(Node):
         msg_map.header.frame_id = 'map'
         self.path_map_pub.publish(msg_map)
 
-    def plan_once(self, local_costmap_stamp: Optional[Time] = None):
-        """执行一次规划；local_costmap_stamp 与触发本次规划的局部 costmap 对齐。"""
-        if not self._has_map():
-            return
+    # ==================== 航点到达检查定时器 ====================
 
-        current_nanos = TimeUtils.now_nanos()
+    def _init_arrival_check_timer(self):
+        """初始化航点到达检查定时器"""
+        self.arrival_check_timer = self.create_timer(
+            self.arrival_check_interval,
+            self.arrival_check_callback
+        )
+        self.logger.info(f'航点到达检查定时器已启动，间隔: {self.arrival_check_interval}s')
 
-        # 从队列中获取与 local_costmap_stamp 时间戳最接近的 map_pose
-        if local_costmap_stamp is not None:
-            target_nanos = TimeUtils.stamp_to_nanos(local_costmap_stamp)
-            pose = self.get_closest_map_pose(target_nanos)
-            if pose is None or not pose.get('valid', False):
-                return
-            pose_timestamp = pose.get('timestamp', 0)
-            pose_time_diff = abs(pose_timestamp - target_nanos) / 1e9
-            if pose_time_diff > self.pose_timeout:
-                self.logger.warning(f'Robot pose time diff too large: {pose_time_diff:.3f}s > {self.pose_timeout:.3f}s')
-                return
-        else:
-            pose = self.latest_map_pose
-            if pose is None or not pose.get('valid', False):
-                return
-            pose_timestamp = pose.get('timestamp', 0)
-            if current_nanos - pose_timestamp > self.pose_timeout * 1e9:
-                self.logger.warning('Robot pose timestamp expired')
-                return
-
-        robot_x = float(pose['x'])
-        robot_y = float(pose['y'])
-
+    def arrival_check_callback(self):
+        """定时检查航点是否到达，使用最新的 map_pose"""
         if self.task_completed:
             return
 
         if not self.nav_map_points:
             return
 
-        # 维护未到达航点指针
+        current_nanos = TimeUtils.now_nanos()
+        pose = self.latest_map_pose
+
+        if pose is None or not pose.get('valid', False):
+            return
+
+        pose_timestamp = pose.get('timestamp', 0)
+        if current_nanos - pose_timestamp > self.map_pose_timeout * 1e9:
+            self.logger.warning('arrival_check: Robot pose timestamp expired')
+            return
+
+        robot_x = float(pose['x'])
+        robot_y = float(pose['y'])
+
+        # 检查并更新未到达航点指针
         while self.unreached_index < len(self.nav_map_points):
             goal_point = self.nav_map_points[self.unreached_index]
             dist = math.hypot(goal_point['x'] - robot_x, goal_point['y'] - robot_y)
@@ -1613,6 +1784,29 @@ class MapPlannerNode(Node):
             self.task_completed = True
             self.publish_empty_path()
             self.logger.info('All waypoints reached, task completed')
+
+    def plan_once(self, local_costmap_stamp: Optional[Time] = None):
+        """执行一次规划；直接使用最新的 map_pose。"""
+        if not self._has_map():
+            return
+
+        current_nanos = TimeUtils.now_nanos()
+
+        pose = self.latest_map_pose
+        if pose is None or not pose.get('valid', False):
+            return
+        pose_timestamp = pose.get('timestamp', 0)
+        if current_nanos - pose_timestamp > self.map_pose_timeout * 1e9:
+            self.logger.warning('Robot pose timestamp expired')
+            return
+
+        robot_x = float(pose['x'])
+        robot_y = float(pose['y'])
+
+        if self.task_completed:
+            return
+
+        if not self.nav_map_points:
             return
 
         goal_point = self.nav_map_points[self.unreached_index]
@@ -1672,7 +1866,7 @@ class MapPlannerNode(Node):
             waypoints_map.append({'x': wx, 'y': wy})
 
         self.publish_sparse_path_in_base_link(waypoints_map, local_costmap_stamp)
-        self.publish_sparse_path_in_map(waypoints_map, local_costmap_stamp)
+        #self.publish_sparse_path_in_map(waypoints_map, local_costmap_stamp)
 
     # ==================== 定时器 ====================
 

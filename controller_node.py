@@ -421,7 +421,7 @@ class ControllerNode(Node):
                 sin_val = 0.0
                 cos_val = 1.0
 
-        state_parts.append(np.array([distance, sin_val, cos_val], dtype=np.float32))
+        state_parts.append(np.array([distance, cos_val, sin_val ], dtype=np.float32))
 
         # 3. v, w
         with self.velocity_lock:

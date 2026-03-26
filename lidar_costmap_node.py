@@ -13,8 +13,8 @@ ROS 标准坐标系：
 2. 订阅 PointCloud2，每次只保存最新点云
 3. 按工作频率循环：若最新点云时间戳失效，则跳过
 4. 高度过滤
-5. 降采样
-6. 截取 ROI
+5. ROI（先裁剪减少点数）
+6. 降采样（后降采样提升性能）
 7. 转换为 costmap（先投影，再沿射线向后填充）
 8. 计算 obs_min_distance
 9. 将 2D costmap 和 obs_min_distance 发布到指定 topic
@@ -270,7 +270,7 @@ class LidarCostmapNode(Node):
 
     def pointcloud_callback(self, msg: PointCloud2):
         """
-        点云回调：
+        点云回调
         每帧点云到来直接处理一次（同时维护最新一帧缓存）
         """
         points = self.pointcloud2_to_xyz_array(msg)
@@ -528,7 +528,8 @@ class LidarCostmapNode(Node):
         rows = int(self.scan_range / self.costmap_resolution)
         cols = int(2 * self.scan_range / self.costmap_resolution)
 
-        costmap = np.zeros((rows, cols), dtype=np.uint8)
+        # -1 表示未知区域，0 表示空闲，self.costmap_value 表示障碍
+        costmap = np.full((rows, cols), -1, dtype=np.int8)
         obs_min_distance = np.full(self.bin_num, self.scan_range, dtype=np.float32)
 
         num_rays = len(self.ray_paths)
@@ -556,39 +557,47 @@ class LidarCostmapNode(Node):
         ).astype(np.int32)
         fine_indices = np.clip(fine_indices, 0, num_rays - 1)
 
-        # 对每个细射线 bin，只保留最近点
-        # 排序规则：先按 bin，再按 distance 升序
-        order = np.lexsort((front_distances, fine_indices))
-        sorted_bins = fine_indices[order]
-
-        first_of_bin = np.empty(len(order), dtype=bool)
-        first_of_bin[0] = True
-        first_of_bin[1:] = (sorted_bins[1:] != sorted_bins[:-1])
-
-        selected = order[first_of_bin]
-
-        selected_bins = fine_indices[selected]
-        selected_distances = front_distances[selected]
-
-        # 每条细射线的最近障碍距离
+        # binned min：直接记录每个 bin 的最近距离，省掉排序步骤
         fine_min_distance = np.full(num_rays, self.scan_range, dtype=np.float32)
-        fine_min_distance[selected_bins] = selected_distances.astype(np.float32)
+        for bin_idx, dist in zip(fine_indices, front_distances.astype(np.float32)):
+            if dist < fine_min_distance[bin_idx]:
+                fine_min_distance[bin_idx] = dist
+
+        # 找出每个 bin 的最近点（用于生成 costmap）
+        selected_bins = []
+        selected_distances = []
+
+        for bin_idx in range(num_rays):
+            mask = fine_indices == bin_idx
+            if np.any(mask):
+                bin_distances = front_distances[mask]
+                min_idx = np.argmin(bin_distances)
+                selected_bins.append(bin_idx)
+                selected_distances.append(bin_distances[min_idx])
 
         # 用细射线最近障碍距离生成 costmap
-        for ray_idx, d in zip(selected_bins.tolist(), selected_distances.tolist()):
+        for ray_idx, d in zip(selected_bins, selected_distances):
             grid_rows, grid_cols, cell_exit_r = self.ray_paths[ray_idx]
 
             if len(cell_exit_r) == 0:
                 continue
 
-            # 找到包含该障碍距离的那个格子，并从该格子开始向后全填障碍
-            start_idx = int(np.searchsorted(cell_exit_r, d, side='left'))
+            # 找到包含该障碍距离的那个格子
+            obstacle_idx = int(np.searchsorted(cell_exit_r, d, side='left'))
 
-            if start_idx < len(cell_exit_r):
+            if obstacle_idx >= len(cell_exit_r):
+                # 障碍物不在范围内，跳过
+                continue
+
+            # obstacle_idx 之前的格子设为空闲 (0)
+            if obstacle_idx > 0:
                 costmap[
-                    grid_rows[start_idx:],
-                    grid_cols[start_idx:]
-                ] = self.costmap_value
+                    grid_rows[:obstacle_idx],
+                    grid_cols[:obstacle_idx]
+                ] = 0
+
+            # 障碍物所在格子设为障碍值，然后停止
+            costmap[grid_rows[obstacle_idx], grid_cols[obstacle_idx]] = self.costmap_value
 
         # 将细射线结果聚合成 bin_num 个 obs_min
         coarse_step_rad = math.pi / self.bin_num
@@ -776,7 +785,7 @@ class LidarCostmapNode(Node):
         #   row_occ = col
         #   col_occ = rows_x - 1 - row
         # 等价于顺时针旋转 90 度
-        occ_grid = np.rot90(costmap, k=-1)
+        occ_grid = costmap[::-1, ::-1].T
         rows_occ, cols_occ = occ_grid.shape
 
         msg.info.resolution = self.costmap_resolution
@@ -793,7 +802,11 @@ class LidarCostmapNode(Node):
         msg.info.origin.orientation.w = 1.0
 
         # OccupancyGrid.data 为 row-major：先沿 x 遍历一整行，再到更大的 y
-        occ_grid_int = np.clip(occ_grid.astype(np.int8), 0, 100)
+        occ_grid_int = np.where(
+            occ_grid < 0,
+            0,
+            np.clip(occ_grid, 0, 100)
+        ).astype(np.int8)
         msg.data = occ_grid_int.reshape(-1).tolist()
 
         self.local_costmap_pub.publish(msg)
@@ -833,24 +846,24 @@ class LidarCostmapNode(Node):
         t1 = time.perf_counter()
         time_height = t1 - t0
 
-        # 5. 降采样
+        # 5. ROI（先裁剪，减少后续降采样处理的点数）
         t0 = time.perf_counter()
-        points_downsampled = self.downsample(points_filtered)
-        t1 = time.perf_counter()
-        time_downsample = t1 - t0
-
-        # 6. ROI
-        t0 = time.perf_counter()
-        points_roi = self.filter_roi(points_downsampled)
+        points_roi = self.filter_roi(points_filtered)
         t1 = time.perf_counter()
         time_roi = t1 - t0
 
-        if len(points_roi) == 0:
+        # 6. 降采样
+        t0 = time.perf_counter()
+        points_downsampled = self.downsample(points_roi)
+        t1 = time.perf_counter()
+        time_downsample = t1 - t0
+
+        if len(points_downsampled) == 0:
             x_filtered = np.array([], dtype=np.float32)
             y_filtered = np.array([], dtype=np.float32)
         else:
-            x_filtered = points_roi[:, 0]
-            y_filtered = points_roi[:, 1]
+            x_filtered = points_downsampled[:, 0]
+            y_filtered = points_downsampled[:, 1]
 
         # 7-8. 一次细射线扫描，同时生成 costmap 和 obs_min_distance
         t0 = time.perf_counter()
@@ -873,14 +886,14 @@ class LidarCostmapNode(Node):
                 f'Update done | '
                 f'raw={len(points)} | '
                 f'height={len(points_filtered)} | '
-                f'downsample={len(points_downsampled)} | '
                 f'roi={len(points_roi)} | '
+                f'downsample={len(points_downsampled)} | '
                 f'costmap={costmap.shape[1]}x{costmap.shape[0]} | '
                 f'cloud_age={cloud_age_sec:.3f}s | '
                 f'fine_scan_step={self.fine_scan_step_deg:.3f}deg | '
                 f't_height={time_height:.6f}s | '
-                f't_downsample={time_downsample:.6f}s | '
                 f't_roi={time_roi:.6f}s | '
+                f't_downsample={time_downsample:.6f}s | '
                 f't_scan={time_scan:.6f}s | '
                 f't_publish={time_publish:.6f}s | '
                 f't_total={total_time:.6f}s'

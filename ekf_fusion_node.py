@@ -201,10 +201,8 @@ class EKFFusionNode(Node):
             1
         )
 
-        # 发布者 - 使用 transient local 确保晚加入的订阅者(如 rviz)能获取最新数据
-        qos_transient_local = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
-        self.map_pose_pub = self.create_publisher(PoseStamped, self.map_pose_topic, qos_transient_local)
-        self.gps_pose_pub = self.create_publisher(PoseStamped, self.gps_map_pose_topic, 10)
+        self.map_pose_pub = self.create_publisher(PoseStamped, self.map_pose_topic, 1)
+        self.gps_pose_pub = self.create_publisher(PoseStamped, self.gps_map_pose_topic, 1)
 
         # 静态 TF 广播器
         self.tf_broadcaster = StaticTransformBroadcaster(self)

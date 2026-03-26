@@ -41,7 +41,7 @@ class FrequencyStats:
     def __init__(
         self,
         node_name: str,
-        target_frequency: float,
+        target_frequency: Optional[float] = None,
         logger: Optional[logging.Logger] = None,
         ros_logger: Optional[object] = None,
         window_size: int = 10,
@@ -53,7 +53,7 @@ class FrequencyStats:
         
         Args:
             node_name: 节点名称，用于日志输出
-            target_frequency: 目标工作频率 (Hz)
+            target_frequency: 目标工作频率 (Hz)，可选。不传入时仅记录实际频率
             logger: Python logging logger (可选)
             ros_logger: ROS2 node.get_logger() (可选)
             window_size: 滑动窗口大小，用于计算平均频率
@@ -117,38 +117,44 @@ class FrequencyStats:
         # 计算实际频率
         self._actual_frequency = self._calculate_frequency()
 
-        # 计算偏差
-        frequency_error = self.target_frequency - self._actual_frequency
-        error_percent = (frequency_error / self.target_frequency) * 100 if self.target_frequency > 0 else 0
-
-        # 判断是否低于阈值
-        warn_threshold_freq = self.target_frequency * self.warn_threshold
-
-        # 构建日志消息
-        if self._actual_frequency < warn_threshold_freq:
-            # 频率过低，输出警告
-            msg = (
-                f"[{self.node_name}] 实际工作频率低于预期! "
-                f"目标: {self.target_frequency:.1f} Hz, "
-                f"实际: {self._actual_frequency:.2f} Hz "
-                f"(偏差: {error_percent:.1f}%)"
-            )
-
-            if self.logger:
-                self.logger.warning(msg)
-            if self.ros_logger:
-                self.ros_logger.warning(msg)
-        else:
-            # 频率正常，输出info
-            msg = (
-                f"[{self.node_name}] 工作频率: {self._actual_frequency:.2f} Hz "
-                f"(目标: {self.target_frequency:.1f} Hz)"
-            )
-
+        # 无目标频率时，仅记录实际频率
+        if self.target_frequency is None:
+            msg = f"[{self.node_name}] 工作频率: {self._actual_frequency:.2f} Hz"
             if self.logger:
                 self.logger.info(msg)
             if self.ros_logger:
                 self.ros_logger.info(msg)
+        else:
+            # 计算偏差
+            frequency_error = self.target_frequency - self._actual_frequency
+            error_percent = (frequency_error / self.target_frequency) * 100 if self.target_frequency > 0 else 0
+
+            # 判断是否低于阈值
+            warn_threshold_freq = self.target_frequency * self.warn_threshold
+
+            # 构建日志消息
+            if self._actual_frequency < warn_threshold_freq:
+                msg = (
+                    f"[{self.node_name}] 实际工作频率低于预期! "
+                    f"目标: {self.target_frequency:.1f} Hz, "
+                    f"实际: {self._actual_frequency:.2f} Hz "
+                    f"(偏差: {error_percent:.1f}%)"
+                )
+
+                if self.logger:
+                    self.logger.warning(msg)
+                if self.ros_logger:
+                    self.ros_logger.warning(msg)
+            else:
+                msg = (
+                    f"[{self.node_name}] 工作频率: {self._actual_frequency:.2f} Hz "
+                    f"(目标: {self.target_frequency:.1f} Hz)"
+                )
+
+                if self.logger:
+                    self.logger.info(msg)
+                if self.ros_logger:
+                    self.ros_logger.info(msg)
 
         self._last_log_time = current_time
 
