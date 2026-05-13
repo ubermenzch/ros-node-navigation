@@ -22,7 +22,7 @@ from utils.logger import NodeLogger
 
 
 class FrontVideoRecorderNode:
-    """GStreamer based front camera recorder for multi_main.py."""
+    """GStreamer based front camera recorder for main.py."""
 
     VALID_CONTAINERS = ("mp4", "mkv")
 
@@ -298,7 +298,7 @@ class FrontVideoRecorderNode:
 
 
 def run_front_video_recorder_node(log_dir: str = None, log_timestamp: str = None, args=None):
-    """Entry point used by multi_main.py."""
+    """Entry point used by main.py."""
     node = FrontVideoRecorderNode(log_dir=log_dir, log_timestamp=log_timestamp)
     node.run()
 

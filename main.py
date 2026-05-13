@@ -13,7 +13,7 @@
 - controller_node:    控制（单线程）
 
 使用方式：
-  python3 multi_main.py
+  python3 main.py
 
 按 Ctrl+C 可优雅关闭所有节点。
 """

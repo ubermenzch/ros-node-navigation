@@ -4,7 +4,7 @@
 
 本项目是一个基于 ROS 2 的多节点导航系统，面向机器狗/移动机器人在 GNSS、里程计、激光雷达和深度强化学习控制器共同参与下的自主导航任务。
 
-系统主入口为 `multi_main.py`，运行时会以多进程方式启动各功能节点：
+系统主入口为 `main.py`，运行时会以多进程方式启动各功能节点：
 
 - `ekf_fusion_node.py`：融合 RTK/GNSS、RTK yaw 与里程计，输出 `map` 坐标系定位。
 - `lidar_costmap_node.py`：处理激光雷达数据，生成局部障碍物观测和局部 costmap。
@@ -38,7 +38,7 @@
 进入项目根目录后运行：
 
 ```bash
-python3 multi_main.py
+python3 main.py
 ```
 
 停止系统：
@@ -56,4 +56,3 @@ GitHub 仓库：
 ```text
 https://github.com/ubermenzch/ros-node-navigation
 ```
-

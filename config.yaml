@@ -268,7 +268,7 @@ controller_node:
 # 宇树 Go2 前置摄像头录像节点配置
 # ============================================================
 front_video_recorder_node:
-  # true = 随 multi_main.py 启动前置摄像头 H.264 录像节点
+  # true = 随 main.py 启动前置摄像头 H.264 录像节点
   # false = 不启动该节点，减少 CPU 占用
   enabled: true
 
@@ -282,13 +282,13 @@ front_video_recorder_node:
   container: mkv
   output_dir: videos
   filename_prefix: go2_front
-  # 留空时自动生成：videos/go2_front_<本次 multi_main 时间戳>.mp4
+  # 留空时自动生成：videos/go2_front_<本次 main.py 时间戳>.mp4
   output_filename: ""
   # 如果需要固定文件名，可填写例如 go2_front.mp4；相对路径基于项目根目录
   output_path: ""
   overwrite_existing: false
 
-  # Ctrl+C 关闭 multi_main.py 时，主进程等待录像节点写完 EOS 的最长时间
+  # Ctrl+C 关闭 main.py 时，主进程等待录像节点写完 EOS 的最长时间
   shutdown_timeout_sec: 30.0
   # 录像节点内部发送 EOS 后等待 GStreamer 确认的最长时间
   eos_timeout_sec: 30.0
