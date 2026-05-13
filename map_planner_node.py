@@ -7,8 +7,8 @@ map_planner_node.py
 将 map_node.py、planner_node.py、shared_map_storage.py 合并为一个节点。
 
 功能：
-1. 接收 anav_v3 下发的 GPS 航点
-2. 将航点 GPS 转换为 map 坐标
+1. 接收 anav_v3 下发的 GNSS 航点
+2. 将航点 GNSS 转换为 map 坐标
 3. 使用“机器人当前 map 坐标 + 航点 map 坐标”生成道路地图
 4. 地图保存在节点内部，并发布完整地图给 rviz
 5. 订阅 map_pose，维护未到达航点指针
@@ -44,15 +44,19 @@ import numpy as np
 
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import SingleThreadedExecutor
+from rclpy.executors import SingleThreadedExecutor, MultiThreadedExecutor
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from builtin_interfaces.msg import Time
 from utils.time_utils import TimeUtils
+from utils.data_queue import DataQueue
 
 import tf2_ros
 from nav_msgs.msg import OccupancyGrid, Path
 from map_msgs.msg import OccupancyGridUpdate
 from geometry_msgs.msg import Pose, PoseStamped, Quaternion
+from visualization_msgs.msg import Marker
 from std_msgs.msg import String
 
 # UTM 库
@@ -61,10 +65,11 @@ try:
     HAS_PYPROJ = True
 except ImportError:
     HAS_PYPROJ = False
-    logging.warning("pyproj not installed, GPS->UTM conversion will not work")
+    logging.warning("pyproj not installed, GNSS->UTM conversion will not work")
 
 from config_loader import get_config
-from frequency_stats import FrequencyStats
+from utils.frequency_stats import FrequencyStats
+from utils.logger import NodeLogger
 
 
 @dataclass
@@ -75,14 +80,6 @@ class MapMetadata:
     height: int
     origin_x: float   # 地图左下角 x（米）
     origin_y: float   # 地图左下角 y（米）
-    robot_x: float    # 生成地图时机器人的 map x（米）
-    robot_y: float    # 生成地图时机器人的 map y（米）
-    gps_points: List[dict]
-
-    origin_lat: float = 0.0
-    origin_lon: float = 0.0
-    meters_per_degree_lat: float = 111320.0
-    meters_per_degree_lon: float = 111320.0
 
 
 class MapPlannerNode(Node):
@@ -110,17 +107,37 @@ class MapPlannerNode(Node):
         self.square_size = float(node_config.get('square_size', 20.0))
         self.road_width = float(node_config.get('road_width', 1.0))
         self.road_sample_step = float(node_config.get('road_sample_step', 0.025))
+        self.generate_road_on_init = self._get_bool_config(
+            node_config,
+            'generate_road_on_init',
+            True
+        )
 
         # 规划参数
         self.publish_full_map = bool(node_config.get('publish_full_map', True))
+        self.publish_uninflated_map = bool(node_config.get('publish_uninflated_map', True))
+        self.publish_debug_map = bool(node_config.get('publish_debug_map', False))
         self.map_pose_timeout = float(node_config.get('map_pose_timeout', 1.0))
         self.local_costmap_timeout = float(node_config.get('local_costmap_timeout', 0.3))
+        self.queue_cleanup_frequency = float(node_config.get('queue_cleanup_frequency', 10.0))
         self.max_distance_between = float(node_config.get('max_distance_between', 0.5))
-        self.allow_diagonal = bool(node_config.get('allow_diagonal', False))
+        self.dense_nav_points_max_distance = float(node_config.get('dense_nav_points_max_distance', 0.0))
         self.arrival_threshold = float(node_config.get('arrival_threshold', 1.0))
+        self.global_path_rejoin_threshold = float(node_config.get('global_path_rejoin_threshold', 0.0))
+        self.global_path_rejoin_goal_weight = max(
+            0.0,
+            min(1.0, float(node_config.get('global_path_rejoin_goal_weight', 0.1)))
+        )
         arrival_check_frequency = float(node_config.get('arrival_check_frequency', 2.0))
         self.arrival_check_interval = 1.0 / arrival_check_frequency if arrival_check_frequency > 0 else 0.5
+        self.planning_frequency = float(node_config.get('planning_frequency', 2.0))
+        self.path_publish_frequency = float(node_config.get('path_publish_frequency', 10.0))
         self.obstacle_threshold = int(node_config.get('obstacle_threshold', 50))
+        self.allow_diagonal_astar = bool(node_config.get('allow_diagonal_astar', False))
+        # A* 单次最大节点扩展数，超出时返回已找到的最优路径（或 None）
+        # 用于防止在大地图碎片障碍物场景下 A* 长时间阻塞规划线程
+        self.max_astar_nodes = int(node_config.get('max_astar_nodes', 200000))
+        self.use_bidirectional_astar = bool(node_config.get('use_bidirectional_astar', True))
 
         # 膨胀参数（用于膨胀地图和规划，单位：米）
         self.inflation_margin = float(node_config.get('inflation_margin', 0.3))
@@ -132,7 +149,7 @@ class MapPlannerNode(Node):
         self.utm_lookup_timeout = 1.0
 
         # 话题
-        self.gps_path_topic = subscriptions.get('gps_path_topic', '/navigation_control')
+        self.gnss_path_topic = subscriptions.get('gnss_path_topic', '/navigation_control')
         self.map_pose_topic = subscriptions.get('map_pose_topic', '/navigation/map_pose')
         self.local_costmap_topic = subscriptions.get('local_costmap_topic', '/navigation/local_costmap')
 
@@ -142,9 +159,11 @@ class MapPlannerNode(Node):
         self.inflated_map_update_topic = publications.get('inflated_map_update_topic', '/navigation/inflated_map_update')
         self.nav_map_points_topic = publications.get('nav_map_points_topic', '/navigation/nav_map_points')
         self.path_topic = publications.get('path_topic', '/planned_path')
-        self.path_map_topic = publications.get('path_map_topic', '/planned_path_map')
+        self.path_map_topic = publications.get('path_map_topic', '/navigation/planned_path_map')
+        self.target_marker_topic = publications.get('target_marker_topic', '/navigation/controller_target')
 
         # 内部地图存储（代替 shared_map_storage）
+        self._state_lock = threading.RLock()
         self.map_data: Optional[np.ndarray] = None          # shape=(height, width), row=bottom->top
         self.map_metadata: Optional[MapMetadata] = None
 
@@ -152,18 +171,24 @@ class MapPlannerNode(Node):
         self.inflated_map_data: Optional[np.ndarray] = None  # 膨胀后的地图，shape=(height, width)
 
         # 局部地图坐标缓存（用于向量化更新）
-        self._local_grid_cache: dict = {}
 
         # 位姿状态 - 使用队列缓存 map_pose，按时间戳匹配 local_costmap
-        self.map_pose_queue: deque = deque(maxlen=100)  # 最多缓存100条 pose
+        self.map_pose_queue = DataQueue(timeout_seconds=self.map_pose_timeout)
 
         # 路径任务状态
-        self.nav_gps_points: List[dict] = []
+        self.nav_gnss_points: List[dict] = []
         self.nav_map_points: List[dict] = []
         self.batch_id = ''
         self.batch_number = 0
         self.unreached_index = 0
-        self.task_completed = False
+        self.cached_waypoints_map: List[dict] = []
+        self.cached_rviz_waypoints_map: List[dict] = []
+
+        # ========== 并行执行：创建独立的 callback groups（共享地图状态用锁保护）==========
+        self._data_group = MutuallyExclusiveCallbackGroup()      # gnss_path, map_pose 共用
+        self._costmap_group = MutuallyExclusiveCallbackGroup()   # local_costmap 单独
+        self._planning_group = MutuallyExclusiveCallbackGroup()  # 规划定时器单独
+        self._path_publish_group = MutuallyExclusiveCallbackGroup()  # 高频路径发布定时器
 
         # UTM 变换
         self.utm_zone: Optional[int] = None
@@ -173,116 +198,172 @@ class MapPlannerNode(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        # 发布者 - 普通发布者（不重新发送最后一帧）
-        self.map_pub = self.create_publisher(OccupancyGrid, self.map_topic, 1)
-        self.map_update_pub = self.create_publisher(OccupancyGridUpdate, self.map_update_topic, 1)
+        # 发布者
+        self.map_pub = None
+        self.map_update_pub = None
+        if self.publish_uninflated_map:
+            self.map_pub = self.create_publisher(OccupancyGrid, self.map_topic, 1)
+            self.map_update_pub = self.create_publisher(OccupancyGridUpdate, self.map_update_topic, 1)
         self.inflated_map_pub = self.create_publisher(OccupancyGrid, self.inflated_map_topic, 1)
         self.inflated_map_update_pub = self.create_publisher(OccupancyGridUpdate, self.inflated_map_update_topic, 1)
-        self.nav_map_points_pub = self.create_publisher(Path, self.nav_map_points_topic, 1)
+
+        nav_map_points_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.nav_map_points_pub = self.create_publisher(Path, self.nav_map_points_topic, nav_map_points_qos)
         self.path_pub = self.create_publisher(Path, self.path_topic, 1)
         self.path_map_pub = self.create_publisher(Path, self.path_map_topic, 1)
+        self.target_marker_pub = self.create_publisher(Marker, self.target_marker_topic, 1)
 
-        # 调试地图发布者
-        self.debug_map_pub = self.create_publisher(OccupancyGrid, '/navigation/debug_map', 1)
+        # 调试地图发布者。该地图尺寸/origin 会随局部更新变化，默认关闭以避免 RViz2 反复重建 Map 纹理。
+        self.debug_map_pub = None
+        if self.publish_debug_map:
+            self.debug_map_pub = self.create_publisher(OccupancyGrid, '/navigation/debug_map', 1)
 
-        # 订阅者
-        self.gps_path_sub = self.create_subscription(
+        # 订阅者（分配到独立 callback groups）
+        self.gnss_path_sub = self.create_subscription(
             String,
-            self.gps_path_topic,
-            self.gps_path_callback,
-            1
+            self.gnss_path_topic,
+            self.gnss_path_callback,
+            1,
+            callback_group=self._data_group
         )
 
         self.map_pose_sub = self.create_subscription(
             PoseStamped,
             self.map_pose_topic,
             self.map_pose_callback,
-            1
+            1,
+            callback_group=self._data_group
         )
 
         self.local_costmap_sub = self.create_subscription(
             OccupancyGrid,
             self.local_costmap_topic,
             self.local_costmap_callback,
-            1
+            1,
+            callback_group=self._costmap_group
         )
 
         # 频率统计（统计 local_costmap_callback 执行频率）
         self.map_freq_stats = FrequencyStats(
-            node_name='map_planner_node_map',
-            logger=self.logger,
-            ros_logger=self.get_logger(),
+            object_name='map_planner_node.local_costmap_callback',
+            node_logger=self.logger,
             window_size=10,
             log_interval=5.0
         )
+
+        # 定时清理所有缓存队列
+        self.queue_cleanup_timer = None
+        if self.queue_cleanup_frequency > 0:
+            cleanup_interval = 1.0 / self.queue_cleanup_frequency
+            self.queue_cleanup_timer = self.create_timer(
+                cleanup_interval,
+                self._queue_cleanup_timer_callback,
+                callback_group=self._data_group
+            )
+            self.logger.info(
+                f'队列清理定时器已启动，间隔: {cleanup_interval}s ({self.queue_cleanup_frequency}Hz)'
+            )
+        else:
+            self.logger.info('队列清理定时器已禁用')
 
         # 初始化航点到达检查定时器
         self._init_arrival_check_timer()
 
         init_info = [
             'MapPlanner Node initialized',
-            f'  订阅 GPS 路径: {self.gps_path_topic}',
+            f'  订阅 GNSS 路径: {self.gnss_path_topic}',
             f'  订阅 map_pose: {self.map_pose_topic}',
             f'  订阅 local_costmap: {self.local_costmap_topic}',
-            f'  发布地图: {self.map_topic}',
-            f'  发布地图增量更新: {self.map_update_topic}' if not self.publish_full_map else None,
+            f'  发布未膨胀地图: {self.map_topic}' if self.publish_uninflated_map else '  发布未膨胀地图: 关闭',
+            (
+                f'  发布未膨胀地图增量更新: {self.map_update_topic}'
+                if self.publish_uninflated_map and not self.publish_full_map
+                else None
+            ),
             f'  发布膨胀地图: {self.inflated_map_topic}',
             f'  发布膨胀地图增量更新: {self.inflated_map_update_topic}' if not self.publish_full_map else None,
             f'  发布导航 map 点: {self.nav_map_points_topic}',
             f'  发布规划路径: {self.path_topic}',
+            f'  发布RViz规划路径(map): {self.path_map_topic}',
+            f'  发布当前目标点Marker: {self.target_marker_topic}',
             f'  分辨率: {self.resolution}m',
             f'  道路宽度: {self.road_width}m',
+            f'  初始化道路生成: {"开启" if self.generate_road_on_init else "关闭（空地图模式）"}',
             f'  膨胀余量: {self.inflation_margin}m',
             f'  膨胀形状: 正方形（边长={self.inflation_margin * 2:.2f}m）',
             f'  膨胀地图功能: {"开启" if self.inflation_enabled else "关闭"}',
             f'  航点到达阈值: {self.arrival_threshold}m',
+            f'  全局路径回归阈值: {self.global_path_rejoin_threshold}m',
+            f'  全局路径回归目标航点权重: {self.global_path_rejoin_goal_weight}',
             f'  航点检查间隔: {self.arrival_check_interval}s',
-            f'  运行模式: 事件驱动 (local_costmap 触发规划)',
+            f'  规划频率: {self.planning_frequency}Hz',
+            f'  base_link路径发布频率: {self.path_publish_frequency}Hz',
+            f'  队列清理频率: {self.queue_cleanup_frequency}Hz',
+            f'  A* 算法模式: {"双向 A*" if self.use_bidirectional_astar else "单向 A*"}',
+            f'  A* 移动模式: {"8连通（允许斜向）" if self.allow_diagonal_astar else "4连通（仅上下左右）"}',
+            f'  运行模式: 定时A*规划 + 高频base_link路径发布',
             f'  地图发布方式: {"完整 OccupancyGrid" if self.publish_full_map else "OccupancyGridUpdate 增量"}',
+            f'  地图发布内容: {"未膨胀地图 + 膨胀地图" if self.publish_uninflated_map else "仅膨胀地图"}',
+            f'  调试局部地图发布: {"开启 /navigation/debug_map" if self.publish_debug_map else "关闭"}',
         ]
-        for line in init_info:
-            if line is not None:
-                self.logger.info(line)
-                self.get_logger().info(line)
+        self.node_logger.log_init([line for line in init_info if line is not None])
+
+        # 初始化路径规划定时器
+        planning_interval = 1.0 / self.planning_frequency if self.planning_frequency > 0 else 0.5
+        self.planning_timer = self.create_timer(
+            planning_interval,
+            self._planning_timer_callback,
+            callback_group=self._planning_group
+        )
+        self.logger.info(f'路径规划定时器已启动，间隔: {planning_interval}s ({self.planning_frequency}Hz)')
+
+        self.path_publish_timer = None
+        if self.path_publish_frequency > 0:
+            path_publish_interval = 1.0 / self.path_publish_frequency
+            self.path_publish_timer = self.create_timer(
+                path_publish_interval,
+                self._path_publish_timer_callback,
+                callback_group=self._path_publish_group
+            )
+            self.logger.info(
+                f'base_link路径发布定时器已启动，间隔: {path_publish_interval}s '
+                f'({self.path_publish_frequency}Hz)'
+            )
+        else:
+            self.logger.info('base_link路径发布定时器已禁用')
 
     # ==================== 日志 ====================
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
-        if self.log_dir is not None:
-            log_dir = self.log_dir
-        else:
-            ts = self.log_timestamp
-            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{ts}')
-            os.makedirs(log_dir, exist_ok=True)
-
-        log_file = os.path.join(log_dir, f'map_planner_node_log_{self.log_timestamp}.log')
-
-        self.logger = logging.getLogger('map_planner_node')
-        self.logger.setLevel(logging.INFO)
-        self.logger.handlers.clear()
-
-        if enabled:
-            file_handler = logging.FileHandler(log_file, encoding='utf-8')
-            file_handler.setLevel(logging.INFO)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-            self.logger.addHandler(file_handler)
+        self.node_logger = NodeLogger(
+            node_name='map_planner_node',
+            log_dir=self.log_dir,
+            log_timestamp=self.log_timestamp,
+            enabled=enabled,
+            ros_logger=self.get_logger()
+        )
+        self.logger = self.node_logger
 
     # ==================== 基础状态检查 ====================
 
-    def _has_map(self) -> bool:
-        if self.map_data is None:
-            self.logger.warning('Map not ready: map_data is None')
-            return False
-        if self.map_metadata is None:
-            self.logger.warning('Map not ready: map_metadata is None')
-            return False
-        # 仅在膨胀功能开启时检查膨胀地图
-        if self.inflation_enabled and self.inflated_map_data is None:
-            self.logger.warning('Map not ready: inflated_map_data is None')
-            return False
-        return True
+    @staticmethod
+    def _get_bool_config(config: dict, key: str, default: bool) -> bool:
+        value = config.get(key, default)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ('true', '1', 'yes', 'on'):
+                return True
+            if normalized in ('false', '0', 'no', 'off'):
+                return False
+        return bool(value)
 
     def _get_inflation_radius_cells(self, resolution: float) -> int:
         """计算膨胀半径（格子数），膨胀正方形半边长 = inflation_margin"""
@@ -305,10 +386,10 @@ class MapPlannerNode(Node):
         )
     # ==================== TF 与坐标转换 ====================
 
-    def gps_to_utm(self, lat: float, lon: float) -> Tuple[Optional[float], Optional[float]]:
+    def gnss_to_utm(self, lat: float, lon: float) -> Tuple[Optional[float], Optional[float]]:
         """经纬度转 UTM"""
         if not HAS_PYPROJ:
-            self.logger.error('pyproj not installed, cannot convert GPS to UTM')
+            self.logger.error('pyproj not installed, cannot convert GNSS to UTM')
             return (None, None)
 
         try:
@@ -375,7 +456,7 @@ class MapPlannerNode(Node):
             self.logger.error(f'Failed to get utm<-map transform: {e}')
             return None, None, None
 
-    def gps_to_map_coords(
+    def gnss_to_map_coords(
         self,
         lat: float,
         lon: float,
@@ -384,14 +465,14 @@ class MapPlannerNode(Node):
         yaw: float
     ) -> Tuple[Optional[float], Optional[float]]:
         """
-        GPS -> UTM -> map
+        GNSS -> UTM -> map
 
         已知：
             p_utm = t + R(yaw) * p_map
         所以：
             p_map = R(-yaw) * (p_utm - t)
         """
-        utm_x, utm_y = self.gps_to_utm(lat, lon)
+        utm_x, utm_y = self.gnss_to_utm(lat, lon)
         if utm_x is None or utm_y is None:
             return None, None
 
@@ -405,6 +486,142 @@ class MapPlannerNode(Node):
         map_y = -sin_yaw * dx + cos_yaw * dy
 
         return map_x, map_y
+
+    def convert_gnss_points_to_map_points(
+        self,
+        gnss_points: List[dict],
+        trans_x: float,
+        trans_y: float,
+        yaw: float
+    ) -> List[dict]:
+        """
+        将 GNSS 航点列表转换为 map 坐标系下的航点列表
+
+        Args:
+            gnss_points: GNSS 航点列表，每个元素包含 'latitude' 和 'longitude'
+            trans_x: UTM 到 map 的 x 偏移
+            trans_y: UTM 到 map 的 y 偏移
+            yaw: 航向角
+
+        Returns:
+            map 坐标系下的航点列表，转换失败的点会被跳过
+        """
+        nav_map_points = []
+        for wp in gnss_points:
+            try:
+                lat = float(wp['latitude'])
+                lon = float(wp['longitude'])
+            except Exception:
+                continue
+
+            map_x, map_y = self.gnss_to_map_coords(lat, lon, trans_x, trans_y, yaw)
+            if map_x is None or map_y is None:
+                self.logger.warning(f'Failed to convert GNSS ({lat}, {lon}) to map coords')
+                continue
+
+            nav_map_points.append({'x': map_x, 'y': map_y})
+
+        return nav_map_points
+
+    def densify_nav_points(
+        self,
+        points: List[dict],
+        max_distance: float
+    ) -> List[dict]:
+        """
+        密集化导航航点，确保相邻两点之间的距离不超过 max_distance
+
+        Args:
+            points: 原始航点列表，每个元素包含 'x' 和 'y'
+            max_distance: 相邻点之间的最大允许距离（米）
+
+        Returns:
+            密集化后的航点列表
+        """
+        if max_distance <= 0 or len(points) <= 1:
+            return list(points)
+
+        result = [points[0]]
+        for i in range(1, len(points)):
+            prev = result[-1]
+            curr = points[i]
+            dx = curr['x'] - prev['x']
+            dy = curr['y'] - prev['y']
+            dist = math.hypot(dx, dy)
+
+            if dist > max_distance:
+                n = int(math.ceil(dist / max_distance))
+                for j in range(1, n):
+                    t = j / n
+                    result.append({
+                        'x': prev['x'] + t * dx,
+                        'y': prev['y'] + t * dy
+                    })
+            result.append(curr)
+
+        return result
+
+    def _project_point_to_segment(
+        self,
+        px: float,
+        py: float,
+        ax: float,
+        ay: float,
+        bx: float,
+        by: float
+    ) -> Tuple[float, float, float, float]:
+        """返回点 P 到线段 AB 的最近点、线段参数 t 和距离。"""
+        dx = bx - ax
+        dy = by - ay
+        seg_len_sq = dx * dx + dy * dy
+        if seg_len_sq < 1e-12:
+            return ax, ay, 0.0, math.hypot(px - ax, py - ay)
+
+        t = ((px - ax) * dx + (py - ay) * dy) / seg_len_sq
+        t = max(0.0, min(1.0, t))
+        closest_x = ax + t * dx
+        closest_y = ay + t * dy
+        distance = math.hypot(px - closest_x, py - closest_y)
+        return closest_x, closest_y, t, distance
+
+    def _select_astar_goal_from_global_segment(
+        self,
+        robot_x: float,
+        robot_y: float,
+        current_goal: dict
+    ) -> Tuple[float, float, str, Optional[Tuple[float, float, float, float]]]:
+        """
+        根据机器人到当前全局航段的偏离距离选择 A* 目标点。
+
+        当偏离超过 global_path_rejoin_threshold 时，规划到当前航段最近点
+        与当前目标航点的加权融合点；
+        否则直接规划到当前目标航点。
+        """
+        current_x = float(current_goal['x'])
+        current_y = float(current_goal['y'])
+        if self.global_path_rejoin_threshold <= 0:
+            return current_x, current_y, 'waypoint', None
+
+        if self.unreached_index > 0:
+            previous_goal = self.nav_map_points[self.unreached_index - 1]
+        else:
+            return current_x, current_y, 'waypoint', None
+
+        prev_x = float(previous_goal['x'])
+        prev_y = float(previous_goal['y'])
+        closest_x, closest_y, t, distance = self._project_point_to_segment(
+            robot_x, robot_y, prev_x, prev_y, current_x, current_y
+        )
+        projection_info = (closest_x, closest_y, t, distance)
+
+        if distance > self.global_path_rejoin_threshold:
+            waypoint_weight = self.global_path_rejoin_goal_weight
+            projection_weight = 1.0 - waypoint_weight
+            blended_x = projection_weight * closest_x + waypoint_weight * current_x
+            blended_y = projection_weight * closest_y + waypoint_weight * current_y
+            return blended_x, blended_y, 'global_path_blend', projection_info
+
+        return current_x, current_y, 'waypoint', projection_info
 
     def world_to_grid(
         self,
@@ -446,67 +663,28 @@ class MapPlannerNode(Node):
                 'x': msg.pose.position.x,
                 'y': msg.pose.position.y,
                 'yaw': yaw,
-                'timestamp': TimeUtils.stamp_to_nanos(msg.header.stamp),
-                'valid': True
             }
 
             # 添加到队列
-            self.map_pose_queue.append(pose_entry)
-
-            # 清理过期数据（超出最大缓存时间）
-            self._clean_map_pose_queue()
+            self.map_pose_queue.append(TimeUtils.stamp_to_nanos(msg.header.stamp), pose_entry)
 
         except Exception as e:
             self.logger.error(f'Failed to parse map_pose: {e}')
 
-    def _clean_map_pose_queue(self):
-        """清理超出缓存时间的 pose 数据"""
-        if not self.map_pose_queue:
-            return
-
+    def _queue_cleanup_timer_callback(self):
+        """定时清理所有缓存队列中的过期数据"""
         current_nanos = TimeUtils.now_nanos()
-        timeout_nanos = self.map_pose_timeout * 1e9
-        cutoff_time = current_nanos - timeout_nanos
+        removed_map_pose = self.map_pose_queue.prune_expired(current_nanos)
+        if removed_map_pose > 0:
+            self.logger.debug(f'Pruned expired queue frames: map_pose_queue={removed_map_pose}')
 
-        # 从队首移除所有超时的 pose
-        while self.map_pose_queue and self.map_pose_queue[0]['timestamp'] < cutoff_time:
-            self.map_pose_queue.popleft()
+    def is_task_completed(self) -> bool:
+        """检查任务是否已完成（所有航点都已到达）"""
+        return self.unreached_index >= len(self.nav_map_points)
 
-    def get_closest_map_pose(self, target_timestamp: int) -> Optional[dict]:
+    def gnss_path_callback(self, msg: String):
         """
-        从队列中获取时间戳最接近 target_timestamp 的 map_pose
-
-        Args:
-            target_timestamp: 目标时间戳（纳秒）
-
-        Returns:
-            最接近的 pose 数据，如果没有有效数据则返回 None
-        """
-        if not self.map_pose_queue:
-            return None
-
-        # 查找时间差最小的 pose
-        best_pose = None
-        best_diff = float('inf')
-
-        for pose in self.map_pose_queue:
-            diff = abs(pose['timestamp'] - target_timestamp)
-            if diff < best_diff:
-                best_diff = diff
-                best_pose = pose
-
-        return best_pose
-
-    @property
-    def latest_map_pose(self) -> Optional[dict]:
-        """获取队列中最新的 map_pose（兼容属性，供不涉及时间戳匹配的代码使用）"""
-        if self.map_pose_queue:
-            return self.map_pose_queue[-1]
-        return None
-
-    def gps_path_callback(self, msg: String):
-        """
-        接收下发的导航 GPS 点
+        接收下发的导航 GNSS 点
 
         格式：
         {
@@ -522,71 +700,78 @@ class MapPlannerNode(Node):
         try:
             data = json.loads(msg.data)
         except Exception as e:
-            self.logger.error(f'Failed to parse GPS path message: {e}')
+            self.logger.error(f'Failed to parse GNSS path message: {e}')
             return
 
         points = data.get('points', [])
         if not points:
-            self.logger.warning('Received empty GPS path message')
+            self.logger.warning('Received empty GNSS path message')
             return
 
-        self.nav_gps_points = points
+        self.nav_gnss_points = points
         self.batch_id = data.get('batchId', '')
         self.batch_number += 1
 
         self.logger.info(
-            f'Received new GPS path: {len(points)} points, '
+            f'Received new GNSS path: {len(points)} points, '
             f'batchId={self.batch_id}, batch_number={self.batch_number}'
         )
+        self.publish_empty_path()
 
-        success = self.generate_map_and_nav_points()
+        # GNSS 航点 -> map 航点
+        trans_x, trans_y, yaw = self.get_utm_to_map_transform()
+        if trans_x is None:
+            self.logger.warning('utm<-map transform not available, cannot convert GNSS points')
+            return
+
+        self.nav_map_points = self.convert_gnss_points_to_map_points(
+            list(self.nav_gnss_points), trans_x, trans_y, yaw
+        )
+
+
+        # 密集化航点
+        if self.dense_nav_points_max_distance > 0 and len(self.nav_map_points) > 1:
+            self.nav_map_points = self.densify_nav_points(
+                self.nav_map_points, self.dense_nav_points_max_distance
+            )
+        
+        # 先发布 nav_map_points（用于 rviz 可视化）
+        self.publish_nav_map_points()
+        # 生成地图（传入已经处理好的 nav_map_points）
+        success = self.generate_map_and_nav_points(self.nav_map_points)
         if not success:
-            self.logger.warning('Failed to generate map from new GPS path')
+            self.logger.warning('Failed to generate map from new GNSS path')
 
     def local_costmap_callback(self, msg: OccupancyGrid):
         callback_start_nanos = TimeUtils.now_nanos()
-        
-        # 统计回调执行频率（节点由本回调驱动）
-        freq_stats_start = TimeUtils.now_nanos()
-        self.map_freq_stats.tick()
-        freq_stats_elapsed = (TimeUtils.now_nanos() - freq_stats_start) / 1e6
 
-        if not self._has_map():
-            self.logger.warning('local_costmap_callback: map not ready, skipped')
+        if self.map_data is None:
+            self.logger.warning('local_costmap_callback: map_data is None, skipped')
             return
-        
-        map_check_end = TimeUtils.now_nanos()
-        map_check_elapsed = (map_check_end - callback_start_nanos) / 1e6
-        
+        if self.map_metadata is None:
+            self.logger.warning('local_costmap_callback: map_metadata is None, skipped')
+            return
+        if self.inflation_enabled and self.inflated_map_data is None:
+            self.logger.warning('local_costmap_callback: inflated_map_data is None, skipped')
+            return
         if msg.header.frame_id != 'base_link':
             self.logger.warning(f'Unexpected local_costmap frame_id: {msg.header.frame_id}')
-        
-        frame_check_elapsed = (TimeUtils.now_nanos() - map_check_end) / 1e6
+            return
         
         current_nanos = TimeUtils.now_nanos()
-        cloud_age_sec = (current_nanos - TimeUtils.stamp_to_nanos(msg.header.stamp)) / 1e9
+        costmap_timestamp = TimeUtils.stamp_to_nanos(msg.header.stamp)
+        cloud_age_sec = (current_nanos - costmap_timestamp) / 1e9
         if cloud_age_sec > self.local_costmap_timeout:
             self.logger.warning(f'local_costmap timeout: {cloud_age_sec:.2f}s > {self.local_costmap_timeout:.2f}s')
             return
 
-        # 从队列中获取与 local_costmap 时间戳最接近的 map_pose
-        costmap_timestamp = TimeUtils.stamp_to_nanos(msg.header.stamp)
-        pose = self.get_closest_map_pose(costmap_timestamp)
+        pose_frame = self.map_pose_queue.find_nearest(costmap_timestamp)
 
-        pose_lookup_elapsed = (TimeUtils.now_nanos() - current_nanos) / 1e6
-
-        if pose is None or not pose.get('valid', False):
+        if pose_frame is None:
             self.logger.warning(f'map_pose queue empty or not received')
             return
 
-        # 检查 pose 时间戳与 costmap 的差异
-        pose_time_diff = abs(pose['timestamp'] - costmap_timestamp) / 1e9
-        if pose_time_diff > self.map_pose_timeout:
-            self.logger.warning(f'map_pose time diff too large: {pose_time_diff:.3f}s > {self.map_pose_timeout:.3f}s')
-            return
-
         try:
-            parse_start = TimeUtils.now_nanos()
             width = int(msg.info.width)
             height = int(msg.info.height)
             resolution = float(msg.info.resolution)
@@ -598,85 +783,157 @@ class MapPlannerNode(Node):
 
             origin_x = float(msg.info.origin.position.x)
             origin_y = float(msg.info.origin.position.y)
-            parse_elapsed = (TimeUtils.now_nanos() - parse_start) / 1e6
 
-            # 更新全局地图
-            update_map_start = TimeUtils.now_nanos()
-            map_updated, update_box = self.update_global_map_from_local_costmap(
-                local_costmap=costmap,
-                local_resolution=resolution,
-                origin_x=origin_x,
-                origin_y=origin_y,
-                robot_x=pose['x'],
-                robot_y=pose['y'],
-                robot_yaw=pose['yaw']
-            )
-            #print(f'update_box: {update_box}')
-            update_map_elapsed = (TimeUtils.now_nanos() - update_map_start) / 1e6
-
-            if map_updated:
-                # 发布地图更新
-                pub_map_start = TimeUtils.now_nanos()
-                if self.publish_full_map:
-                    # 发布完整地图
-                    full_grid = self.build_full_map_msg()
-                    if full_grid is not None:
-                        self.map_pub.publish(full_grid)
-                else:
-                    # 发布增量更新
-                    self.publish_map_update(update_box, msg.header.stamp)
-                pub_map_elapsed = (TimeUtils.now_nanos() - pub_map_start) / 1e6
-
-                # 仅在膨胀功能开启时更新膨胀地图
-                if self.inflation_enabled:
-                    # 更新膨胀地图
-                    inflate_start = TimeUtils.now_nanos()
-                    inflated_update_box = self.update_inflated_map_from_bbox(update_box)
-                    inflate_elapsed = (TimeUtils.now_nanos() - inflate_start) / 1e6
-                    
-                    # 发布膨胀地图更新
-                    pub_inflate_start = TimeUtils.now_nanos()
-                    if self.publish_full_map:
-                        # 发布完整膨胀地图
-                        full_inflated_grid = self.build_inflated_map_msg()
-                        if full_inflated_grid is not None:
-                            self.inflated_map_pub.publish(full_inflated_grid)
-                    else:
-                        # 发布增量更新
-                        self.publish_inflated_map_bbox_update(inflated_update_box, msg.header.stamp)
-                    pub_inflate_elapsed = (TimeUtils.now_nanos() - pub_inflate_start) / 1e6
-                else:
-                    inflate_elapsed = 0.0
-                    pub_inflate_elapsed = 0.0
-
-                # 执行路径规划
-                plan_start = TimeUtils.now_nanos()
-                self.plan_once(msg.header.stamp)
-                plan_elapsed = (TimeUtils.now_nanos() - plan_start) / 1e6
-                
-                total_elapsed = (TimeUtils.now_nanos() - callback_start_nanos) / 1e6
-                
-                self.logger.info(
-                    f'local_costmap_callback timing: '
-                    f'total={total_elapsed:.2f}ms | '
-                    f'freq_stats={freq_stats_elapsed:.2f}ms | '
-                    f'map_check={map_check_elapsed:.2f}ms | '
-                    f'frame_check={frame_check_elapsed:.2f}ms | '
-                    f'pose_lookup={pose_lookup_elapsed:.2f}ms | '
-                    f'parse={parse_elapsed:.2f}ms | '
-                    f'update_map={update_map_elapsed:.2f}ms | '
-                    f'pub_map={pub_map_elapsed:.2f}ms | '
-                    f'inflate={inflate_elapsed:.2f}ms | '
-                    f'pub_inflate={pub_inflate_elapsed:.2f}ms | '
-                    f'plan={plan_elapsed:.2f}ms'
+            with self._state_lock:
+                update_map_start = TimeUtils.now_nanos()
+                map_updated, update_box = self.update_global_map_from_local_costmap(
+                    local_costmap=costmap,
+                    local_resolution=resolution,
+                    origin_x=origin_x,
+                    origin_y=origin_y,
+                    robot_x=pose_frame.data['x'],
+                    robot_y=pose_frame.data['y'],
+                    robot_yaw=pose_frame.data['yaw']
                 )
-            else:
-                self.logger.debug('local_costmap_callback: map not updated')
+                update_map_elapsed = (TimeUtils.now_nanos() - update_map_start) / 1e6
+
+                if map_updated:
+                    pub_map_elapsed = 0.0
+                    if self.publish_uninflated_map:
+                        pub_map_start = TimeUtils.now_nanos()
+                        if self.publish_full_map:
+                            full_grid = self.build_map_msg(self.map_data, self.map_metadata)
+                            if full_grid is not None:
+                                self.map_pub.publish(full_grid)
+                        else:
+                            min_col, min_row, max_col, max_row = update_box
+                            submap = self.map_data[min_row:max_row + 1, min_col:max_col + 1]
+                            update_msg = self.build_map_update_msg(update_box, submap, msg.header.stamp)
+                            if update_msg is not None:
+                                self.map_update_pub.publish(update_msg)
+                        pub_map_elapsed = (TimeUtils.now_nanos() - pub_map_start) / 1e6
+
+                    if self.inflation_enabled:
+                        inflate_start = TimeUtils.now_nanos()
+                        inflated_update_box = self.update_inflated_map_from_bbox(update_box)
+                        inflate_elapsed = (TimeUtils.now_nanos() - inflate_start) / 1e6
+                        
+                        pub_inflate_start = TimeUtils.now_nanos()
+                        if self.publish_full_map:
+                            full_inflated_grid = self.build_map_msg(self.inflated_map_data, self.map_metadata)
+                            if full_inflated_grid is not None:
+                                self.inflated_map_pub.publish(full_inflated_grid)
+                        else:
+                            if inflated_update_box is not None:
+                                min_col, min_row, max_col, max_row = inflated_update_box
+                                sub = self.inflated_map_data[min_row:max_row + 1, min_col:max_col + 1]
+                                update_msg = self.build_map_update_msg(inflated_update_box, sub, msg.header.stamp)
+                                if update_msg is not None:
+                                    self.inflated_map_update_pub.publish(update_msg)
+                        pub_inflate_elapsed = (TimeUtils.now_nanos() - pub_inflate_start) / 1e6
+                    else:
+                        inflate_elapsed = 0.0
+                        pub_inflate_elapsed = 0.0
+
+                    total_elapsed = TimeUtils.now_nanos() - callback_start_nanos
+                    other_elapsed = total_elapsed - update_map_elapsed * 1e6 - pub_map_elapsed * 1e6 - inflate_elapsed * 1e6 - pub_inflate_elapsed * 1e6
+                    
+                    self.logger.info(
+                        f'local_costmap_callback timing: '
+                        f'total={total_elapsed / 1e6:.2f}ms | '
+                        f'update_map={update_map_elapsed:.2f}ms | '
+                        f'pub_map={pub_map_elapsed:.2f}ms | '
+                        f'inflate={inflate_elapsed:.2f}ms | '
+                        f'pub_inflate={pub_inflate_elapsed:.2f}ms | '
+                        f'other={other_elapsed / 1e6:.2f}ms'
+                    )
+                else:
+                    self.logger.debug('local_costmap_callback: map not updated')
+
+            self.map_freq_stats.tick()
 
         except Exception as e:
             self.logger.error(f'Failed to process local_costmap: {e}')
 
     # ==================== 地图生成 ====================
+
+    def draw_road_on_grid(
+        self,
+        grid: np.ndarray,
+        metadata: MapMetadata,
+        path_points: List[Tuple[float, float]]
+    ):
+        """
+        根据路径点在栅格图上画道路 —— 圆形邮票 (stamp) 法
+
+        算法原理：
+        - 沿路径以一定步长采样（保证相邻圆有重叠即可，无需到分辨率级）
+        - 预计算一个圆形 mask (2R+1)×(2R+1)
+        - 对每个采样点，在其周围用圆形 mask 标记空闲区域
+        - 通过 np.unique 去重，避免在同一格子反复盖章
+
+        复杂度：O(N × R²)，N=采样点数，R=半径(格子数)
+        内存：O(R²)，只需要预计算圆形 mask
+        """
+        if not path_points or len(path_points) < 2:
+            return
+
+        h, w = grid.shape
+        radius_cells = max(1, int(math.ceil((self.road_width * 0.5) / metadata.resolution)))
+
+        # 步长：保证相邻圆重叠即可。取 max(配置, resolution)，并 cap 到 radius_cells*resolution
+        # 防止用户把 road_sample_step 设得过大造成路面出现间隙
+        max_safe_stride = radius_cells * metadata.resolution
+        stride_m = min(
+            max_safe_stride,
+            max(self.road_sample_step, metadata.resolution)
+        )
+
+        dense_points = self.interpolate_polyline(path_points, step=stride_m)
+        if not dense_points:
+            return
+
+        # 一次性转栅格坐标
+        pts = np.asarray(dense_points, dtype=np.float64)
+        gx_all = np.floor((pts[:, 0] - metadata.origin_x) / metadata.resolution).astype(np.int64)
+        gy_all = np.floor((pts[:, 1] - metadata.origin_y) / metadata.resolution).astype(np.int64)
+
+        # 只保留圆与地图有交集的点（圆心可在地图外）
+        keep = (
+            (gx_all + radius_cells >= 0) & (gx_all - radius_cells < w) &
+            (gy_all + radius_cells >= 0) & (gy_all - radius_cells < h)
+        )
+        gx_all = gx_all[keep]
+        gy_all = gy_all[keep]
+        if gx_all.size == 0:
+            return
+
+        # 去重，避免在同一格反复盖章
+        coords = np.unique(np.stack([gy_all, gx_all], axis=1), axis=0)
+
+        # 预计算圆形 mask（半径 radius_cells，尺寸 (2R+1)×(2R+1)）
+        rng = np.arange(-radius_cells, radius_cells + 1)
+        yy, xx = np.meshgrid(rng, rng, indexing='ij')
+        circle_mask = (xx * xx + yy * yy) <= radius_cells * radius_cells
+
+        # 逐点贴章
+        for gy, gx in coords:
+            y0 = max(0, gy - radius_cells)
+            y1 = min(h, gy + radius_cells + 1)
+            x0 = max(0, gx - radius_cells)
+            x1 = min(w, gx + radius_cells + 1)
+            if y0 >= y1 or x0 >= x1:
+                continue
+
+            # 圆形 mask 中对应被裁掉的边界
+            my0 = y0 - (gy - radius_cells)
+            mx0 = x0 - (gx - radius_cells)
+            my1 = my0 + (y1 - y0)
+            mx1 = mx0 + (x1 - x0)
+
+            sub_mask = circle_mask[my0:my1, mx0:mx1]
+            sub = grid[y0:y1, x0:x1]
+            sub[sub_mask] = 0
 
     def interpolate_polyline(self, points: List[Tuple[float, float]], step: float) -> List[Tuple[float, float]]:
         """按固定步长对折线做线性插值"""
@@ -704,148 +961,28 @@ class MapPlannerNode(Node):
 
         return result
 
-    def stamp_circle_free(
-        self,
-        grid: np.ndarray,
-        gx: int,
-        gy: int,
-        radius_cells: int
-    ):
-        """将以 (gx, gy) 为中心的圆形区域标记为空闲(0)"""
-        h, w = grid.shape
-        r2 = radius_cells * radius_cells
-        for dy in range(-radius_cells, radius_cells + 1):
-            yy = gy + dy
-            if yy < 0 or yy >= h:
-                continue
-            remain = r2 - dy * dy
-            if remain < 0:
-                continue
-            dx_max = int(math.floor(math.sqrt(remain)))
-            x0 = max(0, gx - dx_max)
-            x1 = min(w - 1, gx + dx_max)
-            grid[yy, x0:x1 + 1] = 0
+    def generate_map_and_nav_points(self, nav_map_points: List[dict]) -> bool:
+        """根据传入的 nav_map_points 生成全局地图
 
-    def draw_road_on_grid(
-        self,
-        grid: np.ndarray,
-        metadata: MapMetadata,
-        path_points: List[Tuple[float, float]]
-    ):
+        Args:
+            nav_map_points: 已经转换好的 map 坐标航点列表
         """
-        根据路径点在栅格图上画道路
-        - 每隔 road_sample_step 米在路径上采样一个点
-        - 以每个采样点为中心画圆形区域（半径 = road_width / 2）
-        - 圆形区域内的栅格设为空闲 (0)，外部保持原值
-        """
-        if not path_points:
-            return
-
-        dense_points = self.interpolate_polyline(
-            path_points,
-            step=max(self.road_sample_step, self.resolution * 0.5)
-        )
-
-        radius_cells = max(1, int(math.ceil((self.road_width * 0.5) / metadata.resolution)))
-        radius_sq = radius_cells * radius_cells
-
-        if len(dense_points) == 0:
-            return
-
-        # 向量化：将所有点一次性转换为栅格坐标
-        pts = np.array(dense_points, dtype=np.float64)
-        gx_all = np.floor((pts[:, 0] - metadata.origin_x) / metadata.resolution).astype(np.int32)
-        gy_all = np.floor((pts[:, 1] - metadata.origin_y) / metadata.resolution).astype(np.int32)
-
-        h, w = grid.shape
-
-        # 边界筛选
-        valid = (gx_all >= 0) & (gx_all < w) & (gy_all >= 0) & (gy_all < h)
-        gx_all = gx_all[valid]
-        gy_all = gy_all[valid]
-
-        if len(gx_all) == 0:
-            return
-
-        # 计算道路覆盖范围（矩形膨胀 + 圆形约束）
-        min_gx = gx_all.min() - radius_cells
-        max_gx = gx_all.max() + radius_cells
-        min_gy = gy_all.min() - radius_cells
-        max_gy = gy_all.max() + radius_cells
-
-        # 裁剪到地图范围
-        x0 = max(0, min_gx)
-        x1 = min(w - 1, max_gx)
-        y0 = max(0, min_gy)
-        y1 = min(h - 1, max_gy)
-
-        if x0 > x1 or y0 > y1:
-            return
-
-        # 构建局部坐标网格
-        sub_w = x1 - x0 + 1
-        sub_h = y1 - y0 + 1
-        cols, rows = np.meshgrid(
-            np.arange(x0, x1 + 1, dtype=np.int32),
-            np.arange(y0, y1 + 1, dtype=np.int32)
-        )
-
-        # 计算每个局部格到最近道路点的距离平方（向量化最近点查找）
-        road_grid_x = gx_all[:, np.newaxis, np.newaxis]  # (N, 1, 1)
-        road_grid_y = gy_all[:, np.newaxis, np.newaxis]  # (N, 1, 1)
-        dist_sq = (cols - road_grid_x) ** 2 + (rows - road_grid_y) ** 2  # (N, sub_h, sub_w)
-        min_dist_sq = dist_sq.min(axis=0)  # (sub_h, sub_w)
-
-        # 标记道路区域：距离在 radius_cells 以内的设为 0
-        road_mask = min_dist_sq <= radius_sq
-        grid[y0:y1 + 1, x0:x1 + 1][road_mask] = 0
-
-    def generate_map_and_nav_points(self) -> bool:
-        """根据当前 GPS 航点生成全局地图，并计算导航 map 点"""
         # 检查 map_pose 超时
         current_nanos = TimeUtils.now_nanos()
-        pose = self.latest_map_pose
-        if pose is None or not pose.get('valid', False):
+        pose_frame = self.map_pose_queue.get_latest()
+        if pose_frame is None:
             self.logger.warning('No valid map_pose yet, cannot generate map')
             return False
-        pose_timestamp = pose.get('timestamp', 0)
-        if current_nanos - pose_timestamp > self.map_pose_timeout * 1e9:
+        if current_nanos - pose_frame.stamp_nanos > self.map_pose_timeout * 1e9:
             self.logger.warning('map_pose timestamp expired')
             return False
 
-        trans_x, trans_y, yaw = self.get_utm_to_map_transform()
-        if trans_x is None:
-            self.logger.warning('utm<-map transform not available, cannot generate map')
-            return False
-
-        robot_map_x = float(pose['x'])
-        robot_map_y = float(pose['y'])
-
-        gps_points = list(self.nav_gps_points)
-
-        if not gps_points:
-            self.logger.warning('No navigation GPS points')
-            return False
-
-        # GPS 航点 -> map 航点
-        nav_map_points = []
-        for wp in gps_points:
-            try:
-                lat = float(wp['latitude'])
-                lon = float(wp['longitude'])
-            except Exception:
-                continue
-
-            map_x, map_y = self.gps_to_map_coords(lat, lon, trans_x, trans_y, yaw)
-            if map_x is None or map_y is None:
-                self.logger.warning(f'Failed to convert GPS ({lat}, {lon}) to map coords')
-                continue
-
-            nav_map_points.append({'x': map_x, 'y': map_y})
-
         if not nav_map_points:
-            self.logger.error('No valid nav_map_points after conversion')
+            self.logger.warning('No navigation map points')
             return False
+
+        robot_map_x = float(pose_frame.data['x'])
+        robot_map_y = float(pose_frame.data['y'])
 
         # 地图范围：机器人当前位置 + 所有航点
         all_points_xy = [(robot_map_x, robot_map_y)] + [(p['x'], p['y']) for p in nav_map_points]
@@ -863,61 +1000,66 @@ class MapPlannerNode(Node):
         origin_x = min_x
         origin_y = min_y
 
-        # 初始化为障碍物 100，道路区域改成 0
-        grid = np.full((height, width), 100, dtype=np.int8)
-
-        lat_origin = float(gps_points[0]['latitude'])
-        lon_origin = float(gps_points[0]['longitude'])
-        meters_per_degree_lat = 111320.0
-        meters_per_degree_lon = 111320.0 * math.cos(math.radians(lat_origin))
-
         metadata = MapMetadata(
             resolution=self.resolution,
             width=width,
             height=height,
             origin_x=origin_x,
             origin_y=origin_y,
-            robot_x=robot_map_x,
-            robot_y=robot_map_y,
-            gps_points=gps_points.copy(),
-            origin_lat=lat_origin,
-            origin_lon=lon_origin,
-            meters_per_degree_lat=meters_per_degree_lat,
-            meters_per_degree_lon=meters_per_degree_lon,
         )
 
-        # 使用“机器人当前位置 + 航点”连成路
-        full_path = [(robot_map_x, robot_map_y)] + [(p['x'], p['y']) for p in nav_map_points]
-        self.draw_road_on_grid(grid, metadata, full_path)
+        if self.generate_road_on_init:
+            # 初始化为障碍物 100，道路区域改成 0
+            grid = np.full((height, width), 100, dtype=np.int8)
 
-        self.map_data = grid
-        self.map_metadata = metadata
+            # 使用“机器人当前位置 + 航点”连成路
+            full_path = [(robot_map_x, robot_map_y)] + [(p['x'], p['y']) for p in nav_map_points]
+            self.draw_road_on_grid(grid, metadata, full_path)
+            init_mode = 'road'
+        else:
+            # 快速初始化：全图可通行，后续由局部 costmap 写入障碍物并按需膨胀
+            grid = np.zeros((height, width), dtype=np.int8)
+            init_mode = 'empty'
 
-        self.nav_map_points = nav_map_points
-        self.unreached_index = 0
-        self.task_completed = False
+        if self.generate_road_on_init and self.inflation_enabled:
+            inflated_grid = self.inflate_square(grid, self.inflation_radius_cells)
+        else:
+            inflated_grid = grid.copy()
+
+        with self._state_lock:
+            self.map_metadata = metadata
+            self.map_data = grid
+            self.inflated_map_data = inflated_grid
+            self.unreached_index = 0
 
         self.logger.info(
             f'Map generated: size={width}x{height}, resolution={self.resolution:.3f}m, '
-            f'nav_points={len(nav_map_points)}, robot=({robot_map_x:.2f}, {robot_map_y:.2f})'
+            f'nav_points={len(nav_map_points)}, robot=({robot_map_x:.2f}, {robot_map_y:.2f}), '
+            f'init_mode={init_mode}'
         )
 
-        self.publish_nav_map_points()
-        #发送未膨胀的全局地图用于可视化初始化
-        grid_msg = self.build_full_map_msg()
-        if grid_msg is not None:
-            self.map_pub.publish(grid_msg)
-            self.logger.info(
-                f'Published full map: {grid_msg.info.width}x{grid_msg.info.height}'
-            )
-
-        # 对全图进行膨胀并发布（仅在膨胀功能开启时）
-        if self.inflation_enabled and self.map_data is not None and self.map_metadata is not None:
-            self.inflated_map_data = self.inflate_square(self.map_data, self.inflation_radius_cells)
-            grid_msg = self.build_inflated_map_msg()
+        # 发送未膨胀的全局地图用于可视化初始化
+        if self.publish_uninflated_map:
+            grid_msg = self.build_map_msg(grid, metadata)
             if grid_msg is not None:
-                self.inflated_map_pub.publish(grid_msg)
+                self.map_pub.publish(grid_msg)
+                self.logger.info(
+                    f'Published full map: {grid_msg.info.width}x{grid_msg.info.height}'
+                )
+        else:
+            self.logger.info('Skipped publishing uninflated map: publish_uninflated_map=false')
+
+        # 发布初始规划地图。generate_road_on_init=false 时发布全 0 空地图，
+        # 避免 RViz 继续显示上一轮道路地图；后续局部更新仍会正常膨胀。
+        grid_msg = self.build_map_msg(inflated_grid, metadata)
+        if grid_msg is not None:
+            self.inflated_map_pub.publish(grid_msg)
+            if self.generate_road_on_init and self.inflation_enabled:
                 self.logger.info('Published inflated map')
+            elif self.generate_road_on_init:
+                self.logger.info('Published initial map without inflation')
+            else:
+                self.logger.info('Published empty initial map: generate_road_on_init=false')
 
         return True
 
@@ -935,9 +1077,14 @@ class MapPlannerNode(Node):
             min_col/max_col: 列索引范围（对应 x 方向）
             min_row/max_row: 行索引范围（对应 y 方向）
         """
-        if not self._has_map():
+        if not self.publish_debug_map or self.debug_map_pub is None:
             return
-
+        if self.map_data is None:
+            self.logger.debug('_publish_debug_map: map not ready')
+            return
+        if self.map_metadata is None:
+            self.logger.debug('_publish_debug_map: map_metadata not ready')
+            return
         metadata = self.map_metadata
         data = self.map_data
 
@@ -948,7 +1095,7 @@ class MapPlannerNode(Node):
 
         # 构建 OccupancyGrid
         debug_grid = OccupancyGrid()
-        debug_grid.header.stamp = self.get_clock().now().to_msg()
+        debug_grid.header.stamp = TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
         debug_grid.header.frame_id = 'map'
 
         debug_grid.info.resolution = metadata.resolution
@@ -963,8 +1110,8 @@ class MapPlannerNode(Node):
 
         self.debug_map_pub.publish(debug_grid)
         self.logger.debug(
-            f'DEBUG: Published debug map [{sub_h}x{sub_w}] at world '
-            f'({debug_grid.info.origin.position.x:.3f}, {debug_grid.info.origin.position.y:.3f})'
+            f'[Debug Map] action=publish size={sub_h}x{sub_w} '
+            f'origin=({debug_grid.info.origin.position.x:.3f},{debug_grid.info.origin.position.y:.3f})'
         )
 
     # ==================== 局部地图更新全局地图 ====================
@@ -972,17 +1119,10 @@ class MapPlannerNode(Node):
     def get_local_grid_centers(
         self, height: int, width: int, resolution: float, origin_x: float, origin_y: float
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """获取局部地图每个格子中心的本地坐标（带缓存）"""
-        key = (height, width, resolution, origin_x, origin_y)
-        cached = self._local_grid_cache.get(key)
-        if cached is not None:
-            return cached
-
+        """获取局部地图每个格子中心的本地坐标"""
         rows, cols = np.indices((height, width), dtype=np.float32)
         local_x = origin_x + (cols + 0.5) * resolution
         local_y = origin_y + (rows + 0.5) * resolution
-
-        self._local_grid_cache[key] = (local_x, local_y)
         return local_x, local_y
 
     def update_global_map_from_local_costmap(
@@ -1012,9 +1152,12 @@ class MapPlannerNode(Node):
         - occ_grid[row, col] 对应世界坐标 (origin_x + col*res, origin_y + row*res)
         - 坐标系为 base_link
         """
-        if not self._has_map():
+        if self.map_data is None:
+            self.logger.debug('update_global_map_from_local_costmap: map not ready')
             return (False, None)
-
+        if self.map_metadata is None:
+            self.logger.debug('update_global_map_from_local_costmap: map_metadata not ready')
+            return (False, None)
         metadata = self.map_metadata
 
         if abs(local_resolution - metadata.resolution) > 1e-6:
@@ -1150,10 +1293,16 @@ class MapPlannerNode(Node):
         y1_all = np.minimum(h - 1, oy_all + r)
 
         # 向量化更新差分数组的四个角
-        diff[y0_all + 1, x0_all + 1] += 1
-        diff[y0_all + 1, x1_all + 2] -= 1
-        diff[y1_all + 2, x0_all + 1] -= 1
-        diff[y1_all + 2, x1_all + 2] += 1
+        # diff[y0_all + 1, x0_all + 1] += 1
+        # diff[y0_all + 1, x1_all + 2] -= 1
+        # diff[y1_all + 2, x0_all + 1] -= 1
+        # diff[y1_all + 2, x1_all + 2] += 1
+        # opus4.7提到array的自增运算有bug（unbuffered），可能导致二维前缀和缺少停止标签，
+        # 进而导致膨胀区域泄露，这里换成慢一点但无bug的运算，看能否解决大面积障碍物bug
+        np.add.at(diff,(y0_all+1,x0_all+1),1)
+        np.add.at(diff,(y0_all+1,x1_all+2),-1)
+        np.add.at(diff,(y1_all+2,x0_all+1),-1)
+        np.add.at(diff,(y1_all+2,x1_all+2),1)
 
         # 水平方向累加
         cumsum_h = np.cumsum(diff, axis=1)
@@ -1168,32 +1317,7 @@ class MapPlannerNode(Node):
 
         return inflated
 
-    # ==================== 膨胀地图发布 ====================
-
-    def build_inflated_map_msg(self) -> Optional[OccupancyGrid]:
-        """构建膨胀地图消息"""
-        if not self._has_map():
-            return None
-
-        metadata = self.map_metadata
-        grid_msg = OccupancyGrid()
-        grid_msg.header.stamp = TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
-        grid_msg.header.frame_id = 'map'
-
-        grid_msg.info.resolution = float(metadata.resolution)
-        grid_msg.info.width = int(metadata.width)
-        grid_msg.info.height = int(metadata.height)
-
-        origin_pose = Pose()
-        origin_pose.position.x = float(metadata.origin_x)
-        origin_pose.position.y = float(metadata.origin_y)
-        origin_pose.position.z = 0.0
-        origin_pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
-        grid_msg.info.origin = origin_pose
-
-        # 使用 ravel() 而非 flatten()：避免不必要的内存拷贝
-        grid_msg.data = self.inflated_map_data.ravel().tolist()
-        return grid_msg
+    # ==================== 膨胀地图更新 ====================
 
     def update_inflated_map_from_bbox(
         self,
@@ -1207,9 +1331,18 @@ class MapPlannerNode(Node):
             膨胀地图中真正被更新的 bbox（即 A+r），
             如果未更新则返回 None。
         """
-        if not self.inflation_enabled or update_bbox is None or not self._has_map():
+        if self.inflated_map_data is None:
+            self.logger.debug('update_inflated_map_from_bbox: inflation_map_data not ready')
             return None
-
+        if update_bbox is None:
+            self.logger.debug('update_inflated_map_from_bbox: update_bbox is None')
+            return None
+        if self.map_data is None:
+            self.logger.debug('update_inflated_map_from_bbox: map_data not ready')
+            return None
+        if self.map_metadata is None:
+            self.logger.debug('update_inflated_map_from_bbox: map_metadata not ready')
+            return None
         metadata = self.map_metadata
         r = self.inflation_radius_cells
 
@@ -1251,94 +1384,113 @@ class MapPlannerNode(Node):
 
         return out_bbox
 
+    def build_map_msg(self, map_data: Optional[np.ndarray], map_metadata: MapMetadata) -> Optional[OccupancyGrid]:
+        """构建 OccupancyGrid 消息
 
-    def publish_inflated_map_bbox_update(
-        self,
-        update_bbox: Optional[Tuple[int, int, int, int]],
-        stamp: Optional[Time] = None
-    ):
+        Args:
+            map_data: 地图数据
+            map_metadata: 地图元数据
         """
-        发布膨胀地图某个 bbox 的增量更新。
-        只负责发布，不负责更新 self.inflated_map_data。
-        """
-        if update_bbox is None or not self._has_map():
-            return
-
-        min_col, min_row, max_col, max_row = update_bbox
-        sub = self.inflated_map_data[min_row:max_row + 1, min_col:max_col + 1]
-
-        update_msg = OccupancyGridUpdate()
-        update_msg.header.stamp = (
-            stamp if stamp is not None
-            else TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
-        )
-        update_msg.header.frame_id = 'map'
-        update_msg.x = int(min_col)
-        update_msg.y = int(min_row)
-        update_msg.width = int(max_col - min_col + 1)
-        update_msg.height = int(max_row - min_row + 1)
-        update_msg.data = sub.flatten().astype(int).tolist()
-
-        self.inflated_map_update_pub.publish(update_msg)
-
-        self.logger.debug(
-            f'Published inflated map bbox update | '
-            f'bbox={update_bbox} | size={update_msg.width}x{update_msg.height}'
-        )
-
-    def build_full_map_msg(self) -> Optional[OccupancyGrid]:
-        if self.map_data is None or self.map_metadata is None:
+        if map_data is None or map_metadata is None:
             return None
 
-        metadata = self.map_metadata
+        width = int(map_metadata.width)
+        height = int(map_metadata.height)
+        resolution = float(map_metadata.resolution)
+
+        if width <= 0 or height <= 0 or resolution <= 0.0:
+            self.logger.error(
+                f'Invalid map metadata: width={width}, height={height}, resolution={resolution}'
+            )
+            return None
+
+        if not (
+            math.isfinite(resolution) and
+            math.isfinite(float(map_metadata.origin_x)) and
+            math.isfinite(float(map_metadata.origin_y))
+        ):
+            self.logger.error(
+                f'Invalid non-finite map metadata: '
+                f'resolution={resolution}, origin=({map_metadata.origin_x}, {map_metadata.origin_y})'
+            )
+            return None
+
+        data = np.asarray(map_data)
+        if data.shape != (height, width):
+            self.logger.error(
+                f'OccupancyGrid shape mismatch: data.shape={data.shape}, '
+                f'metadata={width}x{height}; skip publishing to protect RViz2'
+            )
+            return None
+
         grid_msg = OccupancyGrid()
         grid_msg.header.stamp = TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
         grid_msg.header.frame_id = 'map'
 
-        grid_msg.info.resolution = float(metadata.resolution)
-        grid_msg.info.width = int(metadata.width)
-        grid_msg.info.height = int(metadata.height)
+        grid_msg.info.resolution = resolution
+        grid_msg.info.width = width
+        grid_msg.info.height = height
 
         origin_pose = Pose()
-        origin_pose.position.x = float(metadata.origin_x)
-        origin_pose.position.y = float(metadata.origin_y)
+        origin_pose.position.x = float(map_metadata.origin_x)
+        origin_pose.position.y = float(map_metadata.origin_y)
         origin_pose.position.z = 0.0
         origin_pose.orientation = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
         grid_msg.info.origin = origin_pose
 
-        # map内部存储方向已经与 OccupancyGrid 一致
-        # 使用 ravel() 而非 flatten()：ravel 返回视图（连续时）或浅拷贝，开销更小
-        grid_msg.data = self.map_data.ravel().tolist()
+        grid_msg.data = data.astype(np.int16, copy=False).ravel().astype(int).tolist()
+        expected_len = width * height
+        if len(grid_msg.data) != expected_len:
+            self.logger.error(
+                f'OccupancyGrid data length mismatch: len={len(grid_msg.data)}, '
+                f'expected={expected_len}; skip publishing to protect RViz2'
+            )
+            return None
         return grid_msg
 
-    def publish_map_update(
+    def build_map_update_msg(
         self,
         update_bbox: Optional[Tuple[int, int, int, int]],
+        submap: np.ndarray,
         stamp: Optional[Time] = None
-    ):
-        """发布增量更新"""
-        if update_bbox is None or not self._has_map():
-            return
+    ) -> Optional[OccupancyGridUpdate]:
+        """构建地图增量更新消息
 
-        metadata = self.map_metadata
+        Args:
+            update_bbox: 更新区域 (min_col, min_row, max_col, max_row)
+            submap: 子地图数据
+            stamp: 时间戳
+        """
+        if update_bbox is None or submap is None:
+            return None
+
         min_col, min_row, max_col, max_row = update_bbox
-
         width = max_col - min_col + 1
         height = max_row - min_row + 1
+        data = np.asarray(submap)
+        if width <= 0 or height <= 0 or data.shape != (height, width):
+            self.logger.error(
+                f'OccupancyGridUpdate shape mismatch: bbox={update_bbox}, '
+                f'expected={height}x{width}, data.shape={data.shape}; skip publishing'
+            )
+            return None
 
         update_msg = OccupancyGridUpdate()
         update_msg.header.stamp = stamp if stamp is not None else TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
         update_msg.header.frame_id = 'map'
-
         update_msg.x = int(min_col)
         update_msg.y = int(min_row)
         update_msg.width = int(width)
         update_msg.height = int(height)
-
-        submap = self.map_data[min_row:max_row + 1, min_col:max_col + 1]
-        update_msg.data = submap.flatten().astype(int).tolist()
-
-        self.map_update_pub.publish(update_msg)
+        update_msg.data = data.ravel().astype(int).tolist()
+        expected_len = width * height
+        if len(update_msg.data) != expected_len:
+            self.logger.error(
+                f'OccupancyGridUpdate data length mismatch: len={len(update_msg.data)}, '
+                f'expected={expected_len}; skip publishing'
+            )
+            return None
+        return update_msg
 
     def publish_nav_map_points(self):
         """发布导航点的 map 坐标，供 rviz 可视化"""
@@ -1369,7 +1521,46 @@ class MapPlannerNode(Node):
     # ==================== 规划 ====================
 
     def heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> float:
+        if self.allow_diagonal_astar:
+            dx = abs(a[0] - b[0])
+            dy = abs(a[1] - b[1])
+            return max(dx, dy) + (math.sqrt(2.0) - 1.0) * min(dx, dy)
         return math.hypot(a[0] - b[0], a[1] - b[1])
+
+    def _get_astar_moves(self) -> Tuple[List[Tuple[int, int]], List[float]]:
+        moves = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        move_costs = [1.0, 1.0, 1.0, 1.0]
+
+        if self.allow_diagonal_astar:
+            moves.extend([(1, 1), (1, -1), (-1, -1), (-1, 1)])
+            move_costs.extend([math.sqrt(2.0)] * 4)
+
+        return moves, move_costs
+
+    def _is_astar_move_valid(
+        self,
+        current: Tuple[int, int],
+        move: Tuple[int, int],
+        nx: int,
+        ny: int,
+        width: int,
+        height: int,
+        check_map: np.ndarray
+    ) -> bool:
+        if not (0 <= nx < width and 0 <= ny < height):
+            return False
+        if check_map[ny, nx] >= self.obstacle_threshold:
+            return False
+
+        dx, dy = move
+        if dx != 0 and dy != 0:
+            cx, cy = current
+            if check_map[cy, cx + dx] >= self.obstacle_threshold:
+                return False
+            if check_map[cy + dy, cx] >= self.obstacle_threshold:
+                return False
+
+        return True
 
     def find_nearest_free_cell(
         self,
@@ -1391,17 +1582,14 @@ class MapPlannerNode(Node):
         Returns:
             最近可行点的坐标，如果未找到则返回 None
         """
-        if not self._has_map():
-            return None
-
-        check_map = planning_map if planning_map is not None else self.inflated_map_data
-        if check_map is None:
+        if planning_map is None:
+            self.logger.warning(f"find_nearest_free_cell: planning_map is None, 无法搜索最近可行点 (cell={cell})")
             return None
 
         cx, cy = cell
 
         if 0 <= cx < width and 0 <= cy < height:
-            if check_map[cy, cx] < self.obstacle_threshold:
+            if planning_map[cy, cx] < self.obstacle_threshold:
                 return cell
 
         visited = set()
@@ -1422,11 +1610,13 @@ class MapPlannerNode(Node):
 
                 visited.add((nx, ny))
 
-                if check_map[ny, nx] < self.obstacle_threshold:
+                if planning_map[ny, nx] < self.obstacle_threshold:
+                    self.logger.debug(f"find_nearest_free_cell: 找到最近可行点 (nx={nx}, ny={ny}, dist={dist}, 原始cell={cell})")
                     return (nx, ny)
 
                 queue.append((nx, ny, dist + 1))
 
+        self.logger.warning(f"find_nearest_free_cell: 在半径 {max_radius} 内未找到可行点 (cell={cell}, 地图尺寸: {width}x{height})")
         return None
 
     def astar_planning(
@@ -1435,11 +1625,12 @@ class MapPlannerNode(Node):
         goal: Tuple[int, int],
         width: int,
         height: int,
-        allow_diagonal: bool,
         planning_map: Optional[np.ndarray] = None
     ) -> Optional[List[Tuple[int, int]]]:
         """
         A* 路径规划（支持双向 A* 优化，适用于长距离路径）
+
+        根据 allow_diagonal_astar 配置使用 4-连通或 8-连通移动。
 
         Args:
             planning_map: 用于规划的地图（膨胀地图或原始地图）
@@ -1447,37 +1638,27 @@ class MapPlannerNode(Node):
         因为地图已经膨胀成点机器人可走图，A* 只需检查一个格子即可。
         若使用原始地图，则需要考虑机器人尺寸带来的碰撞。
         """
-        if not self._has_map():
-            self.logger.warning('Map not ready for planning')
-            return None
-
-        check_map = planning_map if planning_map is not None else self.inflated_map_data
-        if check_map is None:
+        if planning_map is None:
             self.logger.warning('Planning map not available')
             return None
 
-        if allow_diagonal:
-            moves = [
-                (0, 1), (1, 0), (0, -1), (-1, 0),
-                (1, 1), (1, -1), (-1, 1), (-1, -1),
-            ]
-            move_costs = [1.0, 1.0, 1.0, 1.0, 1.414, 1.414, 1.414, 1.414]
-        else:
-            moves = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-            move_costs = [1.0, 1.0, 1.0, 1.0]
+        moves, move_costs = self._get_astar_moves()
 
-        if check_map[start[1], start[0]] >= self.obstacle_threshold:
+        if planning_map[start[1], start[0]] >= self.obstacle_threshold:
             self.logger.warning('Start position collides with obstacle')
             return None
 
-        if check_map[goal[1], goal[0]] >= self.obstacle_threshold:
+        if planning_map[goal[1], goal[0]] >= self.obstacle_threshold:
             self.logger.warning('Goal position collides with obstacle')
             return None
 
         if start == goal:
             return [start]
 
-        return self._bidirectional_astar(start, goal, width, height, moves, move_costs, check_map)
+        if self.use_bidirectional_astar:
+            return self._bidirectional_astar(start, goal, width, height, moves, move_costs, planning_map)
+        else:
+            return self._unidirectional_astar(start, goal, width, height, moves, move_costs, planning_map)
 
     def _bidirectional_astar(
         self,
@@ -1489,7 +1670,17 @@ class MapPlannerNode(Node):
         move_costs: List[float],
         check_map: np.ndarray
     ) -> Optional[List[Tuple[int, int]]]:
-        """双向 A* 实现"""
+        """双向 A* 实现
+
+        修复说明（相对于原版）：
+        1. 终止条件改为 fwd_f + bwd_f >= best_estimate（标准双向 A* 最优性条件），
+           原来的 min(fwd_f, bwd_f) >= best_estimate 过于保守，会导致大量多余探索。
+        2. 前向搜索补充了与后向搜索对称的提前剪枝：
+           找到最优路径后，当 fwd_f >= best_estimate 时跳过邻居扩展。
+        3. 增加节点扩展上限 max_astar_nodes，防止在碎片障碍物场景下长时间阻塞：
+           - 超限且已找到路径 → 返回当前最优路径（次优但可用）
+           - 超限且未找到路径 → 返回 None
+        """
 
         # Forward search (from start to goal)
         fwd_open = []
@@ -1505,22 +1696,33 @@ class MapPlannerNode(Node):
         bwd_came_from = {goal: None}
         bwd_closed = set()
 
-        allow_diagonal = len(moves) > 4
         best_path = None
         best_estimate = float('inf')
+        expanded = 0
 
         while fwd_open or bwd_open:
+            # ── 节点扩展上限保护 ──────────────────────────────────────────
+            if expanded >= self.max_astar_nodes:
+                self.logger.warning(
+                    f'A* node limit reached ({expanded} nodes), '
+                    f'returning {"best path found so far" if best_path is not None else "None"}'
+                )
+                return best_path
+
+            # ── 标准双向 A* 最优终止条件 ─────────────────────────────────
             if fwd_open and bwd_open:
                 fwd_f = fwd_open[0][0]
                 bwd_f = bwd_open[0][0]
-                if best_path is not None and min(fwd_f, bwd_f) >= best_estimate:
+                if best_path is not None and fwd_f + bwd_f >= best_estimate:
                     break
 
+            # ── 前向扩展 ─────────────────────────────────────────────────
             if fwd_open:
                 fwd_f, fwd_current = heapq.heappop(fwd_open)
                 if fwd_current in fwd_closed:
                     continue
                 fwd_closed.add(fwd_current)
+                expanded += 1
 
                 if fwd_current in bwd_g:
                     total = fwd_g[fwd_current] + bwd_g[fwd_current]
@@ -1530,17 +1732,14 @@ class MapPlannerNode(Node):
                             fwd_came_from, bwd_came_from, fwd_current
                         )
 
+                # 找到最优路径后，前向 f 值已超出上界，跳过扩展（与后向对称）
+                if best_path is not None and fwd_f >= best_estimate:
+                    continue
+
                 for move, move_cost in zip(moves, move_costs):
                     nx, ny = fwd_current[0] + move[0], fwd_current[1] + move[1]
-                    if not (0 <= nx < width and 0 <= ny < height):
+                    if not self._is_astar_move_valid(fwd_current, move, nx, ny, width, height, check_map):
                         continue
-                    if check_map[ny, nx] >= self.obstacle_threshold:
-                        continue
-                    if allow_diagonal and move[0] != 0 and move[1] != 0:
-                        if check_map[fwd_current[1] + move[1], fwd_current[0]] >= self.obstacle_threshold or \
-                           check_map[fwd_current[1], fwd_current[0] + move[0]] >= self.obstacle_threshold:
-                            continue
-
                     neighbor = (nx, ny)
                     if neighbor in fwd_closed:
                         continue
@@ -1552,11 +1751,13 @@ class MapPlannerNode(Node):
                         h = self.heuristic(neighbor, goal)
                         heapq.heappush(fwd_open, (tentative_g + h, neighbor))
 
+            # ── 后向扩展 ─────────────────────────────────────────────────
             if bwd_open:
                 bwd_f, bwd_current = heapq.heappop(bwd_open)
                 if bwd_current in bwd_closed:
                     continue
                 bwd_closed.add(bwd_current)
+                expanded += 1
 
                 if bwd_current in fwd_g:
                     total = fwd_g[bwd_current] + bwd_g[bwd_current]
@@ -1566,21 +1767,14 @@ class MapPlannerNode(Node):
                             fwd_came_from, bwd_came_from, bwd_current
                         )
 
+                # 找到最优路径后，后向 f 值已超出上界，跳过扩展
                 if best_path is not None and bwd_f >= best_estimate:
                     continue
 
-                # Reverse moves for backward search
                 for move, move_cost in zip(moves, move_costs):
                     nx, ny = bwd_current[0] + move[0], bwd_current[1] + move[1]
-                    if not (0 <= nx < width and 0 <= ny < height):
+                    if not self._is_astar_move_valid(bwd_current, move, nx, ny, width, height, check_map):
                         continue
-                    if check_map[ny, nx] >= self.obstacle_threshold:
-                        continue
-                    if allow_diagonal and move[0] != 0 and move[1] != 0:
-                        if check_map[bwd_current[1] + move[1], bwd_current[0]] >= self.obstacle_threshold or \
-                           check_map[bwd_current[1], bwd_current[0] + move[0]] >= self.obstacle_threshold:
-                            continue
-
                     neighbor = (nx, ny)
                     if neighbor in bwd_closed:
                         continue
@@ -1619,23 +1813,88 @@ class MapPlannerNode(Node):
 
         return forward_path + backward_path
 
+    def _unidirectional_astar(
+        self,
+        start: Tuple[int, int],
+        goal: Tuple[int, int],
+        width: int,
+        height: int,
+        moves: List[Tuple[int, int]],
+        move_costs: List[float],
+        check_map: np.ndarray
+    ) -> Optional[List[Tuple[int, int]]]:
+        """标准单向 A* 实现"""
+        open_set = []
+        heapq.heappush(open_set, (0.0, start))
+        g_score = {start: 0.0}
+        came_from = {start: None}
+        closed = set()
+        expanded = 0
+
+        while open_set:
+            if expanded >= self.max_astar_nodes:
+                self.logger.warning(
+                    f'A* node limit reached ({expanded} nodes), '
+                    f'returning {"best path found so far" if g_score else "None"}'
+                )
+                path = []
+                node = goal if goal in came_from else None
+                if node is None and g_score:
+                    node = min(g_score, key=lambda n: g_score[n])
+                while node is not None:
+                    path.append(node)
+                    node = came_from.get(node)
+                return path if path else None
+
+            f, current = heapq.heappop(open_set)
+            if current in closed:
+                continue
+            closed.add(current)
+            expanded += 1
+
+            if current == goal:
+                result = []
+                node = current
+                while node is not None:
+                    result.append(node)
+                    node = came_from.get(node)
+                result.reverse()
+                return result
+
+            for move, move_cost in zip(moves, move_costs):
+                nx, ny = current[0] + move[0], current[1] + move[1]
+                if not self._is_astar_move_valid(current, move, nx, ny, width, height, check_map):
+                    continue
+                neighbor = (nx, ny)
+                if neighbor in closed:
+                    continue
+
+                tentative_g = g_score[current] + move_cost
+                if neighbor not in g_score or tentative_g < g_score[neighbor]:
+                    g_score[neighbor] = tentative_g
+                    came_from[neighbor] = current
+                    h = self.heuristic(neighbor, goal)
+                    heapq.heappush(open_set, (tentative_g + h, neighbor))
+
+        return None
+
     def sparsify_path(self, path: List[Tuple[int, int]], max_cells: int) -> List[Tuple[int, int]]:
         """
         稀疏化路径：
-        - path 不包含起点
-        - 每隔 max_cells-1 个格子取一个点
+        - 始终保留输入路径的起点和终点
+        - 从起点开始，每隔 max_cells 个格子取一个点
         - 终点必须保留
         """
-        if len(path) <= 1:
+        if len(path) <= 2:
             return path
 
         max_cells = max(1, int(max_cells))
-        sparse = []
+        sparse = [path[0]]
 
-        for i in range(1, len(path), max_cells):
+        for i in range(max_cells, len(path) - 1, max_cells):
             sparse.append(path[i])
 
-        if not sparse or sparse[-1] != path[-1]:
+        if sparse[-1] != path[-1]:
             sparse.append(path[-1])
 
         return sparse
@@ -1643,35 +1902,86 @@ class MapPlannerNode(Node):
     def publish_sparse_path_in_base_link(
         self,
         waypoints_map: List[dict],
+        rviz_waypoints_map: Optional[List[dict]] = None,
         stamp: Optional[Time] = None
     ):
-        """将 map 坐标系路径转换到 base_link 坐标系后发布"""
-        # 从队列中获取与时间戳最接近的 map_pose
-        if stamp is not None:
-            target_nanos = TimeUtils.stamp_to_nanos(stamp)
-            pose = self.get_closest_map_pose(target_nanos)
-            if pose is None or not pose.get('valid', False):
-                self.logger.warning('No valid robot pose, cannot publish planned path')
-                return
-            pose_time_diff = abs(pose['timestamp'] - target_nanos) / 1e9
-            if pose_time_diff > self.map_pose_timeout:
-                self.logger.warning(f'Robot pose time diff too large: {pose_time_diff:.3f}s > {self.map_pose_timeout:.3f}s')
-                return
-        else:
-            pose = self.latest_map_pose
-            if pose is None or not pose.get('valid', False):
-                self.logger.warning('No valid robot pose, cannot publish planned path')
-                return
+        """缓存最新规划路径，发布 map 可视化路径，并立即发布一次 base_link 路径。"""
+        msg_stamp = stamp if stamp is not None else TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
+        rviz_waypoints_map = rviz_waypoints_map if rviz_waypoints_map is not None else waypoints_map
+        self.cache_sparse_path(waypoints_map, rviz_waypoints_map)
+        self.publish_sparse_path_map(rviz_waypoints_map, msg_stamp)
+        self.publish_cached_path_in_base_link()
 
-        robot_x = float(pose['x'])
-        robot_y = float(pose['y'])
-        robot_yaw = float(pose['yaw'])
+        self.logger.info(
+            f'Cached sparse path: {len(waypoints_map)} waypoints in map frame, '
+            f'RViz map path: {len(rviz_waypoints_map)} waypoints'
+        )
+
+    def cache_sparse_path(self, waypoints_map: List[dict], rviz_waypoints_map: List[dict]):
+        """保存最近一次 A* 输出的 map 坐标系路径，供高频发布器实时转换。"""
+        with self._state_lock:
+            self.cached_waypoints_map = [
+                {'x': float(wp['x']), 'y': float(wp['y'])}
+                for wp in waypoints_map
+            ]
+            self.cached_rviz_waypoints_map = [
+                {'x': float(wp['x']), 'y': float(wp['y'])}
+                for wp in rviz_waypoints_map
+            ]
+
+    def publish_sparse_path_map(self, rviz_waypoints_map: List[dict], stamp: Time):
+        """发布 map 坐标系下的规划路径，主要供 RViz2 可视化。"""
+        msg_map = Path()
+        msg_map.header.stamp = stamp
+        msg_map.header.frame_id = 'map'
+
+        for wp in rviz_waypoints_map:
+            pose_msg = PoseStamped()
+            pose_msg.header = msg_map.header
+            pose_msg.pose.position.x = float(wp['x'])
+            pose_msg.pose.position.y = float(wp['y'])
+            pose_msg.pose.position.z = 0.0
+            pose_msg.pose.orientation.x = 0.0
+            pose_msg.pose.orientation.y = 0.0
+            pose_msg.pose.orientation.z = 0.0
+            pose_msg.pose.orientation.w = 1.0
+            msg_map.poses.append(pose_msg)
+
+        self.path_map_pub.publish(msg_map)
+
+    def publish_cached_path_in_base_link(self):
+        """使用最新 map_pose，将缓存的 map 路径转换为 base_link 后发布给 controller。"""
+        with self._state_lock:
+            waypoints_map = [
+                {'x': wp['x'], 'y': wp['y']}
+                for wp in self.cached_waypoints_map
+            ]
+
+        if not waypoints_map:
+            return
+
+        current_nanos = TimeUtils.now_nanos()
+        pose_frame = self.map_pose_queue.get_latest()
+        if pose_frame is None:
+            self.logger.warning('No valid robot pose, cannot publish planned path')
+            return
+        if current_nanos - pose_frame.stamp_nanos > self.map_pose_timeout * 1e9:
+            pose_age = (current_nanos - pose_frame.stamp_nanos) / 1e9
+            self.logger.warning(
+                f'Robot pose timestamp expired, cannot publish planned path: '
+                f'{pose_age:.3f}s > {self.map_pose_timeout:.3f}s'
+            )
+            return
+
+        robot_x = float(pose_frame.data['x'])
+        robot_y = float(pose_frame.data['y'])
+        robot_yaw = float(pose_frame.data['yaw'])
 
         cos_yaw = math.cos(robot_yaw)
         sin_yaw = math.sin(robot_yaw)
 
         msg = Path()
-        msg.header.stamp = stamp if stamp is not None else TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
+        msg.header.stamp = TimeUtils.nanos_to_stamp(current_nanos)
         msg.header.frame_id = 'base_link'
 
         for wp in waypoints_map:
@@ -1694,41 +2004,64 @@ class MapPlannerNode(Node):
             msg.poses.append(pose_msg)
 
         self.path_pub.publish(msg)
-        self.logger.info(f'Published sparse path: {len(msg.poses)} waypoints in base_link frame')
+        if waypoints_map:
+            target = waypoints_map[0]
+            self.publish_target_marker(target['x'], target['y'], msg.header.stamp)
+        else:
+            self.publish_target_marker()
+        self.logger.debug(f'Published cached path: {len(msg.poses)} waypoints in base_link frame')
 
-    def publish_sparse_path_in_map(
+    def publish_target_marker(
         self,
-        waypoints_map: List[dict],
+        target_x: Optional[float] = None,
+        target_y: Optional[float] = None,
         stamp: Optional[Time] = None
     ):
-        """发布 map 坐标系下的稀疏路径，供 rviz 可视化使用"""
-        msg = Path()
-        msg.header.stamp = stamp if stamp is not None else TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
-        msg.header.frame_id = 'map'
+        """发布当前 map 路径首点 Marker；无目标时删除 Marker。"""
+        marker = Marker()
+        marker.header.frame_id = 'map'
+        marker.header.stamp = stamp if stamp is not None else TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
+        marker.ns = 'target_point'
+        marker.id = 0
 
-        for wp in waypoints_map:
-            pose_msg = PoseStamped()
-            pose_msg.header = msg.header
-            pose_msg.pose.position.x = float(wp['x'])
-            pose_msg.pose.position.y = float(wp['y'])
-            pose_msg.pose.position.z = 0.0
-            pose_msg.pose.orientation.x = 0.0
-            pose_msg.pose.orientation.y = 0.0
-            pose_msg.pose.orientation.z = 0.0
-            pose_msg.pose.orientation.w = 1.0
-            msg.poses.append(pose_msg)
+        if target_x is None or target_y is None:
+            marker.action = Marker.DELETE
+            self.target_marker_pub.publish(marker)
+            return
 
-        self.path_map_pub.publish(msg)
-        self.logger.info(f'Published sparse path: {len(msg.poses)} waypoints in map frame')
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = float(target_x)
+        marker.pose.position.y = float(target_y)
+        marker.pose.position.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.3
+        marker.scale.y = 0.3
+        marker.scale.z = 0.3
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+        marker.color.a = 1.0
+
+        self.target_marker_pub.publish(marker)
+
+    def clear_cached_path(self):
+        """清空缓存路径，避免高频发布器继续发送旧目标。"""
+        with self._state_lock:
+            self.cached_waypoints_map = []
+            self.cached_rviz_waypoints_map = []
 
     def publish_empty_path(self):
-        """任务完成时发布空路径"""
+        """发布空路径，并清空缓存路径。"""
+        self.clear_cached_path()
+
         stamp = TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
 
         msg_base = Path()
         msg_base.header.stamp = stamp
         msg_base.header.frame_id = 'base_link'
         self.path_pub.publish(msg_base)
+        self.publish_target_marker(stamp=stamp)
 
         msg_map = Path()
         msg_map.header.stamp = stamp
@@ -1741,31 +2074,57 @@ class MapPlannerNode(Node):
         """初始化航点到达检查定时器"""
         self.arrival_check_timer = self.create_timer(
             self.arrival_check_interval,
-            self.arrival_check_callback
+            self.arrival_check_callback,
+            callback_group=self._planning_group
         )
         self.logger.info(f'航点到达检查定时器已启动，间隔: {self.arrival_check_interval}s')
 
-    def arrival_check_callback(self):
-        """定时检查航点是否到达，使用最新的 map_pose"""
-        if self.task_completed:
+    def _planning_timer_callback(self):
+        """定时执行路径规划（由定时器驱动，不依赖 local_costmap）"""
+        if self.map_data is None:
+            self.logger.debug('_planning_timer_callback: map_data not ready')
+            return
+        if self.nav_map_points is None:
+            self.logger.debug('_planning_timer_callback: nav_map_points not ready')
+            return
+        if self.is_task_completed():
+            self.logger.debug('_planning_timer_callback: task completed')
             return
 
-        if not self.nav_map_points:
+        pose_frame = self.map_pose_queue.get_latest()
+        if pose_frame is None:
+            self.logger.debug('_planning_timer_callback: map_pose is None')
+            return
+
+        # 触发规划（使用当前时间戳）
+        self.plan_once(TimeUtils.nanos_to_stamp(TimeUtils.now_nanos()))
+
+    def _path_publish_timer_callback(self):
+        """高频发布缓存路径在当前 base_link 坐标系下的位置。"""
+        if self.is_task_completed():
+            return
+        self.publish_cached_path_in_base_link()
+
+    def arrival_check_callback(self):
+        """定时检查航点是否到达，使用最新的 map_pose"""
+        if self.is_task_completed():
+            return
+
+        if self.nav_map_points is None:
             return
 
         current_nanos = TimeUtils.now_nanos()
-        pose = self.latest_map_pose
+        pose_frame = self.map_pose_queue.get_latest()
 
-        if pose is None or not pose.get('valid', False):
+        if pose_frame is None:
             return
 
-        pose_timestamp = pose.get('timestamp', 0)
-        if current_nanos - pose_timestamp > self.map_pose_timeout * 1e9:
+        if current_nanos - pose_frame.stamp_nanos > self.map_pose_timeout * 1e9:
             self.logger.warning('arrival_check: Robot pose timestamp expired')
             return
 
-        robot_x = float(pose['x'])
-        robot_y = float(pose['y'])
+        robot_x = float(pose_frame.data['x'])
+        robot_y = float(pose_frame.data['y'])
 
         # 检查并更新未到达航点指针
         while self.unreached_index < len(self.nav_map_points):
@@ -1781,42 +2140,61 @@ class MapPlannerNode(Node):
                 break
 
         if self.unreached_index >= len(self.nav_map_points):
-            self.task_completed = True
             self.publish_empty_path()
             self.logger.info('All waypoints reached, task completed')
 
     def plan_once(self, local_costmap_stamp: Optional[Time] = None):
         """执行一次规划；直接使用最新的 map_pose。"""
-        if not self._has_map():
+        if self.map_data is None:
+            self.logger.debug('plan_once: map not ready')
             return
-
+        if self.map_metadata is None:
+            self.logger.debug('plan_once: map_metadata not ready')
+            return
+        if self.inflation_enabled and self.inflated_map_data is None:
+            self.logger.debug('plan_once: inflated_map_data not ready')
+            return
         current_nanos = TimeUtils.now_nanos()
-
-        pose = self.latest_map_pose
-        if pose is None or not pose.get('valid', False):
+        pose_frame = self.map_pose_queue.get_latest()
+        if pose_frame is None:
+            self.logger.debug('plan_once: map_pose is None')
             return
-        pose_timestamp = pose.get('timestamp', 0)
-        if current_nanos - pose_timestamp > self.map_pose_timeout * 1e9:
+        if current_nanos - pose_frame.stamp_nanos > self.map_pose_timeout * 1e9:
             self.logger.warning('Robot pose timestamp expired')
             return
 
-        robot_x = float(pose['x'])
-        robot_y = float(pose['y'])
-
-        if self.task_completed:
-            return
-
-        if not self.nav_map_points:
-            return
+        robot_x = float(pose_frame.data['x'])
+        robot_y = float(pose_frame.data['y'])
 
         goal_point = self.nav_map_points[self.unreached_index]
-        goal_map_x = float(goal_point['x'])
-        goal_map_y = float(goal_point['y'])
+        waypoint_x = float(goal_point['x'])
+        waypoint_y = float(goal_point['y'])
+        goal_map_x, goal_map_y, goal_source, projection_info = self._select_astar_goal_from_global_segment(
+            robot_x, robot_y, goal_point
+        )
 
-        map_data = self.map_data
+        # 记录起点到终点的直线距离（世界坐标）
+        straight_line_dist = math.hypot(goal_map_x - robot_x, goal_map_y - robot_y)
+        projection_log = ''
+        if projection_info is not None:
+            proj_x, proj_y, proj_t, off_path_dist = projection_info
+            projection_log = (
+                f' current_waypoint=({waypoint_x:.3f},{waypoint_y:.3f})'
+                f' segment_projection=({proj_x:.3f},{proj_y:.3f},t={proj_t:.3f})'
+                f' off_path_dist={off_path_dist:.3f}m'
+                f' rejoin_threshold={self.global_path_rejoin_threshold:.3f}m'
+                f' waypoint_weight={self.global_path_rejoin_goal_weight:.3f}'
+            )
+        self.logger.info(
+            f'[A* Planning] start=({robot_x:.3f},{robot_y:.3f}) '
+            f'goal=({goal_map_x:.3f},{goal_map_y:.3f}) '
+            f'goal_source={goal_source} '
+            f'straight_line_dist={straight_line_dist:.3f}m'
+            f'{projection_log}'
+        )
+
         metadata = self.map_metadata
-        # 选择规划地图：膨胀功能开启时使用膨胀地图，否则使用原始地图
-        planning_map = self.inflated_map_data if self.inflation_enabled else self.map_data
+        planning_map = self.inflated_map_data.copy() if self.inflation_enabled else self.map_data.copy()
 
         start_gx, start_gy = self.world_to_grid(robot_x, robot_y, metadata)
         goal_gx, goal_gy = self.world_to_grid(goal_map_x, goal_map_y, metadata)
@@ -1839,9 +2217,11 @@ class MapPlannerNode(Node):
 
         if start_cell is None:
             self.logger.warning('No free start cell found')
+            self.publish_empty_path()
             return
         if goal_cell is None:
             self.logger.warning('No free goal cell found')
+            self.publish_empty_path()
             return
 
         path = self.astar_planning(
@@ -1849,38 +2229,67 @@ class MapPlannerNode(Node):
             goal=goal_cell,
             width=metadata.width,
             height=metadata.height,
-            allow_diagonal=self.allow_diagonal,
             planning_map=planning_map
         )
 
         if not path or len(path) <= 1:
             self.logger.warning('No path found')
+            self.publish_empty_path()
             return
 
+        # 计算规划路径的实际长度（世界坐标米），兼容斜向移动。
+        planned_path_length = 0.0
+        for (x0, y0), (x1, y1) in zip(path, path[1:]):
+            planned_path_length += math.hypot(x1 - x0, y1 - y0) * metadata.resolution
+        self.logger.info(
+            f'[A* Result] planned_path_length={planned_path_length:.3f}m '
+            f'grid_points={len(path)} '
+            f'path_efficiency={straight_line_dist / planned_path_length:.3f}'
+        )
+
         max_cells = int(self.max_distance_between / metadata.resolution) if metadata.resolution > 0 else 1
-        sparse_grid_path = self.sparsify_path(path[1:], max_cells)
+        sparse_grid_path = self.sparsify_path(path, max_cells)
+        if sparse_grid_path and sparse_grid_path[0] == path[0]:
+            sparse_grid_path = sparse_grid_path[1:]
 
         waypoints_map = []
         for gx, gy in sparse_grid_path:
             wx, wy = self.grid_to_world(gx, gy, metadata)
             waypoints_map.append({'x': wx, 'y': wy})
 
-        self.publish_sparse_path_in_base_link(waypoints_map, local_costmap_stamp)
-        #self.publish_sparse_path_in_map(waypoints_map, local_costmap_stamp)
+        rviz_waypoints_map = []
+        for gx, gy in path:
+            wx, wy = self.grid_to_world(gx, gy, metadata)
+            rviz_waypoints_map.append({'x': wx, 'y': wy})
 
-    # ==================== 定时器 ====================
-
-    # 注意：完整地图只在 generate_map_and_nav_points() 中生成新地图时发布一次
-    # 增量地图更新在 local_costmap_callback 中每次收到局部 costmap 时发布
+        self.publish_sparse_path_in_base_link(waypoints_map, rviz_waypoints_map, local_costmap_stamp)
 
 
-def main(args=None):
+
+
+def run_map_planner_node(log_dir: str = None, log_timestamp: str = None, args=None):
+    """运行节点
+
+    Args:
+        log_dir: 日志目录
+        log_timestamp: 日志时间戳
+        args: ROS 参数
+    """
     rclpy.init(args=args)
 
-    node = MapPlannerNode()
+    node = MapPlannerNode(log_dir=log_dir, log_timestamp=log_timestamp)
 
-    executor = SingleThreadedExecutor()
+    # 使用多线程执行器，支持四个线程组并行执行
+    # 线程分配：
+    #   线程1: _data_group (gnss_path, map_pose)
+    #   线程2: _costmap_group (local_costmap)
+    #   线程3: _planning_group (arrival_check, planning_timer)
+    #   线程4: _path_publish_group (path_publish_timer)
+    num_threads = 4
+    executor = MultiThreadedExecutor(num_threads=num_threads)
     executor.add_node(node)
+
+    node.get_logger().info(f'MultiThreadedExecutor started with {num_threads} threads')
 
     try:
         executor.spin()
@@ -1890,6 +2299,11 @@ def main(args=None):
         executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
+
+
+def main():
+    """独立运行入口（使用默认日志目录）"""
+    run_map_planner_node()
 
 
 if __name__ == '__main__':

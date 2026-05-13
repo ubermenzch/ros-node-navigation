@@ -19,18 +19,17 @@ from rclpy.node import Node
 from rclpy.executors import SingleThreadedExecutor
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Float64MultiArray
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Point, Twist
+from visualization_msgs.msg import Marker, MarkerArray
 from utils.time_utils import TimeUtils
-import threading
 import math
 import numpy as np
 import os
-import logging
 from datetime import datetime
 
 from config_loader import get_config
-from frequency_stats import FrequencyStats
+from utils.frequency_stats import FrequencyStats
+from utils.logger import NodeLogger
 
 
 
@@ -146,7 +145,6 @@ class ControllerNode(Node):
         # 订阅话题
         self.path_topic = subscriptions.get('path_topic', '/planned_path')
         self.lidar_obs_topic = subscriptions.get('lidar_obs_topic', '/lidar_obs')
-        self.map_pose_topic = subscriptions.get('map_pose_topic', '/map_pose')
 
         # 速度话题配置
         self.odom_topic = subscriptions.get('odom_topic', '/navigation/robot_odom')
@@ -160,21 +158,18 @@ class ControllerNode(Node):
         self._last_path_time = 0
         self._last_obs_time = 0
         self._last_odom_time = 0
+        self._last_unavailable_log_time = 0
 
         # 发布话题
         self.cmd_topic = publications.get('cmd_topic', '/cmd_vel')
+        self.guidance_marker_topic = publications.get(
+            'guidance_marker_topic',
+            '/navigation/controller_guidance'
+        )
+        self.guidance_marker_frame = controller_config.get('guidance_marker_frame', 'base_link')
 
-        # 状态锁
-        self.path_lock = threading.Lock()
-        self.obs_lock = threading.Lock()
-        self.velocity_lock = threading.Lock()
-
-        # 路径数据（base_link坐标系）
-        self.waypoints = []  # 路径点列表
-        self.last_path_timestamp = 0  # int64 纳秒
-
-        # 收到空路径后的停车标记
-        self.stop_requested_by_empty_path = False
+        # 路径相关：planner 已经高频发布当前 base_link 坐标系路径
+        self.current_path = []  # 当前直接用于控制的 base_link 路径
 
         # 障碍物观测
         self.latest_obs = None  # obs_min_distance 数组
@@ -215,36 +210,38 @@ class ControllerNode(Node):
 
         # 创建发布者 - 控制指令
         self.cmd_pub = self.create_publisher(
-            # Float64MultiArray,
             Twist,
             self.cmd_topic,
+            1
+        )
+
+        # 创建发布者 - RViz2控制指导可视化
+        self.guidance_marker_pub = self.create_publisher(
+            MarkerArray,
+            self.guidance_marker_topic,
             1
         )
 
         # 工作频率
         self.frequency = controller_config.get('frequency', 10.0)
 
-        # 定时器：按指定频率执行控制
-        period = 1.0 / max(self.frequency, 1e-3)
-        self.timer = self.create_timer(period, self.update)
-
-        # 初始化频率统计
-        self.freq_stats = FrequencyStats(
-            node_name='controller_node',
-            target_frequency=self.frequency,
-            logger=None,  # 会在 _init_logger 之后设置
-            ros_logger=self.get_logger(),
-            window_size=10,
-            warn_threshold=0.8,
-            log_interval=5.0
-        )
-
         # 初始化日志（在订阅/发布创建之后，加载模型之前）
         log_enabled = controller_config.get('log_enabled', True)
         self._init_logger(log_enabled)
 
-        # 更新 logger 引用
-        self.freq_stats.logger = self.logger
+        # 定时器：按指定频率执行控制
+        period = 1.0 / max(self.frequency, 1e-3)
+        self.timer = self.create_timer(period, self.update)
+
+        # 初始化频率统计（在 logger 初始化之后创建，直接传入 logger）
+        self.freq_stats = FrequencyStats(
+            object_name='controller_node',
+            target_frequency=self.frequency,
+            node_logger=self.logger,
+            window_size=10,
+            warn_threshold=0.8,
+            log_interval=5.0
+        )
 
         # 加载模型
         self.model = None
@@ -252,27 +249,14 @@ class ControllerNode(Node):
 
     def _init_logger(self, enabled: bool):
         """初始化日志系统"""
-        if self.log_dir is not None:
-            log_dir = self.log_dir
-        else:
-            ts = self.log_timestamp
-            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', f'navigation_{ts}')
-            os.makedirs(log_dir, exist_ok=True)
-
-        log_file = os.path.join(log_dir, f'controller_node_log_{self.log_timestamp}.log')
-
-        self.logger = logging.getLogger('controller_node')
-        self.logger.setLevel(logging.INFO)
-        self.logger.handlers.clear()
-
-        if enabled:
-            file_handler = logging.FileHandler(log_file, encoding='utf-8')
-            file_handler.setLevel(logging.INFO)
-
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-
-            self.logger.addHandler(file_handler)
+        self.node_logger = NodeLogger(
+            node_name='controller_node',
+            log_dir=self.log_dir,
+            log_timestamp=self.log_timestamp,
+            enabled=enabled,
+            ros_logger=self.get_logger()
+        )
+        self.logger = self.node_logger
 
         init_info = [
             'Controller Node initialized',
@@ -280,14 +264,14 @@ class ControllerNode(Node):
             f'  订阅激光雷达障碍物: {self.obs_sub.topic}',
             f'  订阅里程计(v,w): {self.odom_sub.topic}',
             f'  发布控制命令: {self.cmd_pub.topic}',
+            f'  发布控制指导MarkerArray: {self.guidance_marker_pub.topic}',
             f'  工作频率: {self.frequency} Hz',
+            f'  路径来源: 直接使用planner发布的base_link路径',
             f'  最大速度: {self.max_v} m/s, 最大角速度: {self.max_w} rad/s',
-            f'  详细日志已写入: {log_file}',
+            f'  详细日志已写入: {self.node_logger.log_file}',
         ]
 
-        for line in init_info:
-            self.logger.info(line)
-            self.get_logger().info(line)
+        self.node_logger.log_init(init_info)
 
     def _load_model(self, controller_config: dict):
         model_path = controller_config.get('model_path', '')
@@ -327,7 +311,6 @@ class ControllerNode(Node):
         """接收路径（base_link坐标系）"""
         try:
             waypoints = []
-            timestamp = TimeUtils.stamp_to_nanos(msg.header.stamp)
 
             for pose_stamped in msg.poses:
                 wp = [
@@ -336,22 +319,19 @@ class ControllerNode(Node):
                 ]
                 waypoints.append(wp)
 
-            with self.path_lock:
-                self.last_path_timestamp = timestamp
-                self._last_path_time = TimeUtils.now_nanos()
+            self._last_path_time = TimeUtils.now_nanos()
 
-                # 收到空路径：请求停车
-                if not waypoints:
-                    self.waypoints = []
-                    self.stop_requested_by_empty_path = True
-                    self.logger.info('Received empty path, stop requested')
-                    return
+            # 收到空路径：清空路径
+            if not waypoints:
+                self.current_path = []
+                self.logger.info('Received empty path')
+                return
 
-                # 收到非空路径：清除空路径停车标记
-                self.waypoints = waypoints
-                self.stop_requested_by_empty_path = False
+            # planner 已经基于最新 map_pose 发布 base_link 路径，controller 直接使用
+            self.current_path = waypoints
+            self._log_current_target_distance('path_callback')
 
-            self.logger.info(f'Received new path with {len(waypoints)} waypoints (base_link frame)')
+            self.logger.debug(f'Received new path with {len(waypoints)} waypoints (base_link frame)')
 
         except Exception as e:
             self.logger.error(f'Failed to parse path: {e}')
@@ -367,9 +347,8 @@ class ControllerNode(Node):
                 msg.range_max
             )
 
-            with self.obs_lock:
-                self.latest_obs = obs_min_distance
-                self._last_obs_time = TimeUtils.now_nanos()
+            self.latest_obs = obs_min_distance
+            self._last_obs_time = TimeUtils.now_nanos()
 
         except Exception as e:
             self.logger.error(f'Failed to parse obs: {e}')
@@ -383,10 +362,9 @@ class ControllerNode(Node):
 
             w = msg.twist.twist.angular.z
 
-            with self.velocity_lock:
-                self.velocity['v'] = v
-                self.velocity['w'] = w
-                self._last_odom_time = TimeUtils.now_nanos()
+            self.velocity['v'] = v
+            self.velocity['w'] = w
+            self._last_odom_time = TimeUtils.now_nanos()
 
         except Exception as e:
             self.logger.error(f'Failed to parse odom: {e}')
@@ -396,48 +374,45 @@ class ControllerNode(Node):
         state_parts = []
 
         # 1. obs_min_distance
-        with self.obs_lock:
-            if self.latest_obs is not None and not timeout_status['lidar_obs']:
-                obs_min_distance = self.latest_obs
-            else:
-                obs_min_distance = np.ones(20, dtype=np.float32)
+        if self.latest_obs is not None and not timeout_status['lidar_obs']:
+            obs_min_distance = self.latest_obs
+        else:
+            obs_min_distance = np.ones(20, dtype=np.float32)
 
         state_parts.append(obs_min_distance)
 
         # 2. distance, sin, cos
-        with self.path_lock:
-            if self.waypoints:
-                target = self.waypoints[0]
-                target_x = target[0] if isinstance(target, (list, tuple)) else target['x']
-                target_y = target[1] if isinstance(target, (list, tuple)) else target['y']
+        # planner 下发的路径不包含起点，第一个点就是当前控制目标点
+        if len(self.current_path) >= 1:
+            target_x, target_y = self._current_target_xy()
 
-                distance = math.sqrt(target_x * target_x + target_y * target_y)
-                angle_to_target = math.atan2(target_y, target_x)
+            distance = math.sqrt(target_x * target_x + target_y * target_y)
+            angle_to_target = math.atan2(target_y, target_x)
 
-                sin_val = math.sin(angle_to_target)
-                cos_val = math.cos(angle_to_target)
-            else:
-                distance = 0.0
-                sin_val = 0.0
-                cos_val = 1.0
+            sin_val = math.sin(angle_to_target)
+            cos_val = math.cos(angle_to_target)
+        else:
+            distance = 0.0
+            sin_val = 0.0
+            cos_val = 1.0
 
         state_parts.append(np.array([distance, cos_val, sin_val ], dtype=np.float32))
 
         # 3. v, w
-        with self.velocity_lock:
-            if not timeout_status['odom']:
-                v = self.velocity['v']
-                w = self.velocity['w']
-            else:
-                v = 0.0
-                w = 0.0
-
-        # state_parts.append(np.array([v, w], dtype=np.float32))
+        if not timeout_status['odom']:
+            v = self.velocity['v']
+            w = self.velocity['w']
+        else:
+            v = 0.0
+            w = 0.0
 
         # 4. last_action
         state_parts.append(np.array([self.last_action['v'], self.last_action['w']], dtype=np.float32))
 
         state = np.concatenate(state_parts)
+
+        # 记录模型原始输入
+        self.logger.info(f'Computed state: state={state}')
         return state
 
     def inference(self, state: np.ndarray) -> tuple:
@@ -474,9 +449,8 @@ class ControllerNode(Node):
         cmd_w = model_w * self.max_w
         return cmd_v, cmd_w
 
-    def publish_cmd(self, cmd_v: float, cmd_w: float):
+    def publish_cmd(self, cmd_v: float, cmd_w: float, zero_reason: str = None):
         """发布控制指令"""
-        # msg = Float64MultiArray()
         msg = Twist()
         msg.linear.x = cmd_v
         msg.angular.z = cmd_w
@@ -484,10 +458,166 @@ class ControllerNode(Node):
 
         self.last_action = {'v': cmd_v, 'w': cmd_w}
 
+        try:
+            self.publish_guidance_markers(cmd_v, cmd_w)
+        except Exception as e:
+            self.logger.error(f'Failed to publish guidance markers: {e}')
+
+        if zero_reason is not None:
+            self.logger.warning(
+                f'Published zero cmd_vel: linear.x={cmd_v:.3f}, '
+                f'angular.z={cmd_w:.3f}, reason={zero_reason}'
+            )
+        else:
+            self.logger.info(f'Published cmd_vel: linear.x={cmd_v:.3f}, angular.z={cmd_w:.3f}')
+
+    def publish_guidance_markers(self, cmd_v: float, cmd_w: float):
+        """发布RViz2可视化控制指导：线速度直箭头和角速度弯曲箭头。"""
+        stamp = TimeUtils.nanos_to_stamp(TimeUtils.now_nanos())
+        marker_array = MarkerArray()
+
+        linear_arrow_points = self._build_linear_arrow_points(cmd_v)
+        if linear_arrow_points:
+            linear_arrow = self._make_guidance_marker(0, Marker.ARROW, stamp)
+            linear_arrow.scale.x = 0.075
+            linear_arrow.scale.y = 0.18
+            linear_arrow.scale.z = 0.20
+            linear_arrow.color.r = 0.0
+            linear_arrow.color.g = 0.85
+            linear_arrow.color.b = 1.0
+            linear_arrow.color.a = 1.0
+            linear_arrow.points = linear_arrow_points
+            marker_array.markers.append(linear_arrow)
+        else:
+            marker_array.markers.append(self._delete_guidance_marker(0, Marker.ARROW, stamp))
+
+        if abs(cmd_w) > 0.02:
+            turn_arc = self._make_guidance_marker(1, Marker.LINE_STRIP, stamp)
+            turn_arc.scale.x = 0.04
+            turn_arc.color.r = 1.0
+            turn_arc.color.g = 0.55
+            turn_arc.color.b = 0.05
+            turn_arc.color.a = 1.0
+            turn_arc.points = self._build_turn_arc_points(cmd_w)
+            marker_array.markers.append(turn_arc)
+
+            turn_arrow = self._make_guidance_marker(2, Marker.ARROW, stamp)
+            turn_arrow.scale.x = 0.055
+            turn_arrow.scale.y = 0.15
+            turn_arrow.scale.z = 0.16
+            turn_arrow.color.r = 1.0
+            turn_arrow.color.g = 0.55
+            turn_arrow.color.b = 0.05
+            turn_arrow.color.a = 1.0
+            turn_arrow.points = self._build_trailing_arrow_points(turn_arc.points, arrow_length=0.18)
+            marker_array.markers.append(turn_arrow)
+        else:
+            marker_array.markers.append(self._delete_guidance_marker(1, Marker.LINE_STRIP, stamp))
+            marker_array.markers.append(self._delete_guidance_marker(2, Marker.ARROW, stamp))
+        marker_array.markers.append(self._delete_guidance_marker(3, Marker.ARROW, stamp))
+        marker_array.markers.append(self._delete_guidance_marker(4, Marker.TEXT_VIEW_FACING, stamp))
+
+        self.guidance_marker_pub.publish(marker_array)
+
+    def _make_guidance_marker(self, marker_id: int, marker_type: int, stamp) -> Marker:
+        marker = Marker()
+        marker.header.frame_id = self.guidance_marker_frame
+        marker.header.stamp = stamp
+        marker.ns = 'controller_guidance'
+        marker.id = marker_id
+        marker.type = marker_type
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.lifetime.sec = 0
+        marker.lifetime.nanosec = 500_000_000
+        marker.frame_locked = True
+        return marker
+
+    def _delete_guidance_marker(self, marker_id: int, marker_type: int, stamp) -> Marker:
+        marker = self._make_guidance_marker(marker_id, marker_type, stamp)
+        marker.action = Marker.DELETE
+        return marker
+
+    @staticmethod
+    def _point(x: float, y: float, z: float = 0.0) -> Point:
+        point = Point()
+        point.x = float(x)
+        point.y = float(y)
+        point.z = float(z)
+        return point
+
+    def _build_linear_arrow_points(self, cmd_v: float) -> list:
+        if abs(cmd_v) < 0.02:
+            return []
+
+        max_v = max(abs(self.max_v), 1e-6)
+        arrow_length = min(1.2, max(0.25, abs(cmd_v) / max_v * 1.2))
+        direction = 1.0 if cmd_v >= 0.0 else -1.0
+        return [
+            self._point(0.0, 0.0, 0.12),
+            self._point(direction * arrow_length, 0.0, 0.12)
+        ]
+
+    def _build_turn_arc_points(self, cmd_w: float) -> list:
+        sign = 1.0 if cmd_w >= 0.0 else -1.0
+        max_w = max(abs(self.max_w), 1e-6)
+        span = min(math.pi * 0.85, max(math.pi * 0.25, abs(cmd_w) / max_w * math.pi * 0.85))
+        radius = 0.55
+        points = []
+
+        for idx in range(18):
+            theta = sign * span * idx / 17
+            points.append(self._point(radius * math.cos(theta), radius * math.sin(theta), 0.22))
+
+        return points
+
+    def _build_trailing_arrow_points(self, points: list, arrow_length: float = 0.28) -> list:
+        if len(points) < 2:
+            return []
+
+        end = points[-1]
+        for start_candidate in reversed(points[:-1]):
+            dx = end.x - start_candidate.x
+            dy = end.y - start_candidate.y
+            distance = math.sqrt(dx * dx + dy * dy)
+            if distance < 0.05:
+                continue
+
+            length = min(arrow_length, distance)
+            ux = dx / distance
+            uy = dy / distance
+            start = self._point(end.x - ux * length, end.y - uy * length, end.z)
+            return [start, self._point(end.x, end.y, end.z)]
+
+        return []
+
+    def _current_target_xy(self):
+        """返回当前路径首点在 base_link 坐标系下的 x/y。"""
+        target = self.current_path[0]
+        if isinstance(target, (list, tuple, np.ndarray)):
+            return float(target[0]), float(target[1])
+        return float(target.get('x', 0.0)), float(target.get('y', 0.0))
+
+    def _log_current_target_distance(self, source: str):
+        """记录当前路径首点到机器人自身(base_link原点)的直线距离。"""
+        if not self.current_path:
+            return
+
+        target_x, target_y = self._current_target_xy()
+        distance = math.sqrt(target_x * target_x + target_y * target_y)
+        self.logger.debug(
+            f'当前路径首点到自身直线距离: source={source}, '
+            f'x={target_x:.3f}, y={target_y:.3f}, distance={distance:.3f} m'
+        )
+
     def _check_timeout(self) -> dict:
-        """检查各传感器数据是否超时"""
+        """检查各传感器数据是否缺失或超时"""
         current_nanos = TimeUtils.now_nanos()
-        timeout_status = {'path': False, 'lidar_obs': False, 'odom': False}
+        timeout_status = {
+            'path': self._last_path_time <= 0,
+            'lidar_obs': self._last_obs_time <= 0,
+            'odom': self._last_odom_time <= 0,
+        }
 
         if self._last_path_time > 0:
             elapsed = (current_nanos - self._last_path_time) / 1e9
@@ -508,47 +638,52 @@ class ControllerNode(Node):
 
     def update(self):
         """执行一次控制循环"""
-        self.freq_stats.tick()
 
         timeout_status = self._check_timeout()
 
-        if timeout_status['path']:
-            self.logger.warning('Path timeout - no path received recently')
-        if timeout_status['lidar_obs']:
-            self.logger.warning('Lidar obs timeout - no obstacle data received recently')
-        if timeout_status['odom']:
-            self.logger.warning('Odom timeout - no odometry data received recently')
-
-        # 优先处理：收到空路径后持续发送零速度
-        with self.path_lock:
-            stop_requested = self.stop_requested_by_empty_path
-            has_waypoints = bool(self.waypoints)
-
-        if stop_requested:
-            self.publish_cmd(0.0, 0.0)
+        if timeout_status['path'] or timeout_status['lidar_obs'] or timeout_status['odom']:
+            current_nanos = TimeUtils.now_nanos()
+            unavailable = [name for name, is_unavailable in timeout_status.items() if is_unavailable]
+            if current_nanos - self._last_unavailable_log_time > 1_000_000_000:
+                self.logger.warning(f'Controller inputs unavailable: {", ".join(unavailable)}')
+                self._last_unavailable_log_time = current_nanos
+            self.publish_cmd(0.0, 0.0, zero_reason=f'controller inputs unavailable: {", ".join(unavailable)}')
             return
 
-        # 没有路径时或路径超时时，先不发布控制
-        if (not has_waypoints) or timeout_status['path']:
+        has_current_path = bool(self.current_path)
+
+        if not has_current_path:
+            self.publish_cmd(0.0, 0.0, zero_reason='path is empty')
             return
 
         if self.model is None:
+            self.publish_cmd(0.0, 0.0, zero_reason='model is unavailable')
             return
 
         state = self.compute_state(timeout_status)
 
         model_v, model_w = self.inference(state)
         if model_v is None or model_w is None:
+            self.publish_cmd(0.0, 0.0, zero_reason='model inference failed')
             return
 
         cmd_v, cmd_w = self.map_output(model_v, model_w)
         self.publish_cmd(cmd_v, cmd_w)
 
+        self.freq_stats.tick()
 
-def main(args=None):
+
+def run_controller_node(log_dir: str = None, log_timestamp: str = None, args=None):
+    """运行节点
+
+    Args:
+        log_dir: 日志目录
+        log_timestamp: 日志时间戳
+        args: ROS 参数
+    """
     rclpy.init(args=args)
 
-    node = ControllerNode()
+    node = ControllerNode(log_dir=log_dir, log_timestamp=log_timestamp)
 
     executor = SingleThreadedExecutor()
     executor.add_node(node)
@@ -561,6 +696,11 @@ def main(args=None):
         executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
+
+
+def main():
+    """独立运行入口（使用默认日志目录）"""
+    run_controller_node()
 
 
 if __name__ == '__main__':

@@ -38,8 +38,9 @@ import logging
 from datetime import datetime
 
 from config_loader import get_config
-from frequency_stats import FrequencyStats
+from utils.frequency_stats import FrequencyStats
 from utils.time_utils import TimeUtils
+from utils.logger import NodeLogger
 
 
 class LidarCostmapNode(Node):
@@ -79,8 +80,6 @@ class LidarCostmapNode(Node):
         # 每个体素内至少需要多少个点，才保留该体素
         self.min_points_per_voxel = int(lidar_config.get('min_points_per_voxel', 1))
 
-        # 工作频率 (Hz)
-        self.frequency = float(lidar_config.get('frequency', 10.0))
         # 从公共配置获取分辨率
         common_config = config.get('common', {})
         self.costmap_resolution = float(common_config.get('resolution', 0.05))
@@ -100,16 +99,10 @@ class LidarCostmapNode(Node):
         self.fine_scan_step_deg = max(self.fine_scan_step_deg, 1e-6)
         self.fine_scan_step_rad = math.radians(self.fine_scan_step_deg)
 
-        # 点云时间戳失效阈值（秒）
-        self.cloud_timeout = float(lidar_config.get('cloud_timeout', 1.0))
-
         # 状态：只维护最新点云（ROS 标准坐标系）
         self.latest_points = None               # numpy array, shape (N, 3)
         self.latest_cloud_stamp = None          # int64 纳秒
         self.latest_cloud_frame_id = None       # str
-
-        # 用于节流 warning，避免刷屏
-        self._last_warn_time = {}
 
         # 订阅者
         self.pointcloud_sub = self.create_subscription(
@@ -166,44 +159,23 @@ class LidarCostmapNode(Node):
 
         # 初始化频率统计
         self.freq_stats = FrequencyStats(
-            node_name='lidar_costmap_node',
-            target_frequency=self.frequency,
-            logger=self.logger,
-            ros_logger=self.get_logger(),
+            object_name='lidar_costmap_node',
+            node_logger=self.logger,
             window_size=10,
-            warn_threshold=0.8,
             log_interval=5.0
         )
 
     def _init_logger(self, enabled: bool):
         """初始化文件日志系统"""
         self.log_enabled = enabled
-
-        # 使用传入的日志目录或创建新的
-        if self.log_dir is not None:
-            log_dir = self.log_dir
-        else:
-            ts = self.log_timestamp
-            log_dir = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                'logs',
-                f'navigation_{ts}'
-            )
-            os.makedirs(log_dir, exist_ok=True)
-
-        log_file = os.path.join(log_dir, f'lidar_costmap_node_log_{self.log_timestamp}.log')
-
-        self.logger = logging.getLogger('lidar_costmap_node')
-        self.logger.setLevel(logging.INFO)
-        self.logger.handlers.clear()
-        self.logger.propagate = False
-
-        if enabled:
-            file_handler = logging.FileHandler(log_file, encoding='utf-8')
-            file_handler.setLevel(logging.INFO)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-            self.logger.addHandler(file_handler)
+        self.node_logger = NodeLogger(
+            node_name='lidar_costmap_node',
+            log_dir=self.log_dir,
+            log_timestamp=self.log_timestamp,
+            enabled=enabled,
+            ros_logger=self.get_logger()
+        )
+        self.logger = self.node_logger
 
         init_info = [
             'LiDAR Costmap Node initialized',
@@ -220,24 +192,11 @@ class LidarCostmapNode(Node):
             f'  costmap 值: {self.costmap_value}',
             f'  bin 数量: {self.bin_num}',
             f'  射线角度间隔: {self.ray_angle_step_deg} deg',
-            f'  工作频率: {self.frequency} Hz',
-            f'  点云超时阈值: {self.cloud_timeout} s',
             f'  耗时日志: {"启用" if self.log_enabled else "禁用"}',
-            f'  详细日志文件: {log_file}',
+            f'  详细日志文件: {self.node_logger.log_file}',
         ]
 
-        for line in init_info:
-            self.logger.info(line)
-            self.get_logger().info(line)
-
-    def _warn_throttled(self, key: str, message: str, interval_sec: float = 1.0):
-        """节流 warning，避免高频刷屏"""
-        now = time.monotonic()
-        last = self._last_warn_time.get(key, 0.0)
-        if now - last >= interval_sec:
-            self._last_warn_time[key] = now
-            self.logger.warning(message)
-            self.get_logger().warning(message)
+        self.node_logger.log_init(init_info)
 
     def pointcloud2_to_xyz_array(self, msg: PointCloud2) -> np.ndarray:
         offsets = {}
@@ -275,6 +234,10 @@ class LidarCostmapNode(Node):
         """
         points = self.pointcloud2_to_xyz_array(msg)
 
+        if points is None:
+            self.logger.error('pointcloud2_to_xyz_array returned None')
+            return
+
         cloud_stamp = TimeUtils.now_nanos()
 
         cloud_frame_id = msg.header.frame_id if msg.header.frame_id else 'base_link'
@@ -284,7 +247,12 @@ class LidarCostmapNode(Node):
         self.latest_cloud_frame_id = cloud_frame_id
 
         # 直接处理本帧点云
-        self.process_pointcloud(points, cloud_stamp, cloud_frame_id)
+        if not self.process_pointcloud(points, cloud_stamp, cloud_frame_id):
+            self.logger.error('process_pointcloud failed')
+            return
+        
+        self.freq_stats.tick()
+        
     def xyz_array_to_pointcloud2(
         self,
         points: np.ndarray,
@@ -346,17 +314,17 @@ class LidarCostmapNode(Node):
         - 右边 = -90°
         - 左边 = +90°
 
-        内部 costmap 定义（ROS 标准坐标系）：
-        - shape = (rows_x, cols_y)
-        - row 对应前向 x，row 越小表示 x 越大（越靠前）
-        - col 对应横向 y，col 越小表示 y 越大（越靠左）
-        - 左上角 costmap[0, 0] = (x=scan_range, y=+scan_range)，即左前方
-        - 右上角 costmap[0, cols-1] = (x=scan_range, y=-scan_range)，即右前方
-        - 左下角 costmap[rows-1, 0] = (x≈0, y=+scan_range)，即左侧近处
-        - 右下角 costmap[rows-1, cols-1] = (x≈0, y=-scan_range)，即右侧近处
+        内部 costmap 定义（新布局，直接对齐 OccupancyGrid）：
+        - shape = (rows_y, cols_x)
+        - col 对应前向 x，col=0 是机器人近处，col 增大方向为机器人前方
+        - row 对应横向 y，row=0 是机器人右边，row 增大方向为机器人左边
+        - 左上角 costmap[0, 0] = (x=0, y=+scan_range)，即左远方
+        - 右上角 costmap[0, cols-1] = (x=scan_range, y=+scan_range)，即左前方远处
+        - 左下角 costmap[rows-1, 0] = (x=0, y=-scan_range)，即右近处（机器人右侧）
+        - 右下角 costmap[rows-1, cols-1] = (x=scan_range, y=-scan_range)，即右前方远处
         """
-        rows = int(scan_range / resolution)
-        cols = int(2 * scan_range / resolution)
+        rows = int(2 * scan_range / resolution)
+        cols = int(scan_range / resolution)
 
         angle_step_deg = max(float(angle_step_deg), 1e-6)
         angle_step_rad = np.deg2rad(angle_step_deg)
@@ -377,13 +345,13 @@ class LidarCostmapNode(Node):
             x = r_values * np.cos(theta)
             y = r_values * np.sin(theta)
 
-            # 新坐标系：row 越小 x 越大（越靠前），col 越小 y 越大（越靠左）
-            # x = 0 → row = rows-1（底部/靠近机器人）
-            # x = scan_range → row = 0（顶部/前方）
-            # y = +scan_range → col = 0（左侧）
-            # y = -scan_range → col = cols-1（右侧）
-            grid_col = np.floor((scan_range - y) / resolution).astype(np.int32)
-            grid_row = rows - 1 - np.floor(x / resolution).astype(np.int32)
+            # 新坐标系：col 对应 x（前方），row 对应 y（左侧为正，右侧为负）
+            # x = 0 → col = 0（左侧/靠近机器人）
+            # x = scan_range → col = cols-1（右侧/远离机器人）
+            # y = -scan_range → row = 0（右侧/机器人右边）
+            # y = +scan_range → row = rows-1（左侧/机器人左边）
+            grid_col = np.floor(x / resolution).astype(np.int32)
+            grid_row = np.floor((y + scan_range) / resolution).astype(np.int32)
 
             valid = (
                 (grid_col >= 0) & (grid_col < cols) &
@@ -519,21 +487,19 @@ class LidarCostmapNode(Node):
         1. costmap
         2. obs_min_distance
 
-        逻辑：
-        - 使用 fine_scan_step_deg 对前方 180° 做更细射线扫描
-        - 每条细射线只保留最近障碍距离
-        - 用细射线最近障碍距离直接做 costmap 向后填充
-        - 再将细射线结果聚合成 bin_num 个 obs_min_distance
+        costmap 生成逻辑（初始全 -1）：
+        - 有障碍的射线：前方格子设为 0，障碍格子设为 100，后方保持 -1
+        - 无障碍的射线：整条射线设为 0
         """
-        rows = int(self.scan_range / self.costmap_resolution)
-        cols = int(2 * self.scan_range / self.costmap_resolution)
+        rows = int(2 * self.scan_range / self.costmap_resolution)
+        cols = int(self.scan_range / self.costmap_resolution)
 
         # -1 表示未知区域，0 表示空闲，self.costmap_value 表示障碍
         costmap = np.full((rows, cols), -1, dtype=np.int8)
         obs_min_distance = np.full(self.bin_num, self.scan_range, dtype=np.float32)
 
         num_rays = len(self.ray_paths)
-        if len(x_points) == 0 or num_rays == 0:
+        if len(x_points) == 0 or len(y_points) == 0 or num_rays == 0:
             return costmap, obs_min_distance
 
         angles = np.arctan2(y_points, x_points)
@@ -548,56 +514,56 @@ class LidarCostmapNode(Node):
         if not np.any(front_mask):
             return costmap, obs_min_distance
 
-        front_angles = angles[front_mask]
-        front_distances = distances[front_mask]
+        front_angles = angles[front_mask] #每个激光点与机器人x轴（正前方）的夹角
+        front_distances = distances[front_mask] #每个激光点距离机器人的距离
 
         # 点分配到细射线 bin
-        fine_indices = np.floor(
-            (front_angles + math.pi / 2) / self.fine_scan_step_rad
-        ).astype(np.int32)
+        # front_angles = [  -60°,  -30°,    0°,   30°,   60°]
+        # 经过偏移 +π/2 后: = [   30°,   60°,   90°,  120°,  150°]
+        # 假设 fine_scan_step_rad = 5° = 0.087 rad:
+        # 除以步长 = [   6,    12,    18,    24,    30 ]
+        # fine_indices = [   6,    12,    18,    24,    30 ]  (向下取整后)
+        # 最终fine_indices记录的是每个点对应的bin索引
+        fine_indices = np.floor((front_angles + math.pi / 2) / self.fine_scan_step_rad).astype(np.intp)
         fine_indices = np.clip(fine_indices, 0, num_rays - 1)
 
         # binned min：直接记录每个 bin 的最近距离，省掉排序步骤
+        # 初始化为 scan_range，无激光点的 bin 保持此值
         fine_min_distance = np.full(num_rays, self.scan_range, dtype=np.float32)
         for bin_idx, dist in zip(fine_indices, front_distances.astype(np.float32)):
-            if dist < fine_min_distance[bin_idx]:
-                fine_min_distance[bin_idx] = dist
+            bin_idx_int = int(bin_idx)
+            if dist < fine_min_distance[bin_idx_int]:
+                fine_min_distance[bin_idx_int] = dist
 
-        # 找出每个 bin 的最近点（用于生成 costmap）
-        selected_bins = []
-        selected_distances = []
-
-        for bin_idx in range(num_rays):
-            mask = fine_indices == bin_idx
-            if np.any(mask):
-                bin_distances = front_distances[mask]
-                min_idx = np.argmin(bin_distances)
-                selected_bins.append(bin_idx)
-                selected_distances.append(bin_distances[min_idx])
-
-        # 用细射线最近障碍距离生成 costmap
-        for ray_idx, d in zip(selected_bins, selected_distances):
+        # 处理所有射线：初始全 -1，每条射线只处理一次
+        for ray_idx in range(num_rays):
             grid_rows, grid_cols, cell_exit_r = self.ray_paths[ray_idx]
-
+            
             if len(cell_exit_r) == 0:
                 continue
 
-            # 找到包含该障碍距离的那个格子
+            grid_rows = np.asarray(grid_rows, dtype=np.intp).ravel()
+            grid_cols = np.asarray(grid_cols, dtype=np.intp).ravel()
+
+            if len(grid_rows) == 0 or len(grid_cols) == 0:
+                continue
+
+            d = fine_min_distance[ray_idx]
+            
+            # 如果障碍物距离 >= scan_range，说明该方向没有有效障碍物，整条射线设为空闲
+            if d >= self.scan_range:
+                costmap[grid_rows, grid_cols] = 0
+                continue
+            
             obstacle_idx = int(np.searchsorted(cell_exit_r, d, side='left'))
 
             if obstacle_idx >= len(cell_exit_r):
-                # 障碍物不在范围内，跳过
-                continue
-
-            # obstacle_idx 之前的格子设为空闲 (0)
-            if obstacle_idx > 0:
-                costmap[
-                    grid_rows[:obstacle_idx],
-                    grid_cols[:obstacle_idx]
-                ] = 0
-
-            # 障碍物所在格子设为障碍值，然后停止
-            costmap[grid_rows[obstacle_idx], grid_cols[obstacle_idx]] = self.costmap_value
+                costmap[grid_rows, grid_cols] = 0
+            else:
+                if obstacle_idx > 0:
+                    costmap[grid_rows[:obstacle_idx], grid_cols[:obstacle_idx]] = 0
+                if obstacle_idx < len(grid_rows):
+                    costmap[grid_rows[obstacle_idx], grid_cols[obstacle_idx]] = self.costmap_value
 
         # 将细射线结果聚合成 bin_num 个 obs_min
         coarse_step_rad = math.pi / self.bin_num
@@ -615,34 +581,36 @@ class LidarCostmapNode(Node):
         将点云直接投影到初步 2D costmap 上（ROS 标准坐标系）
 
         costmap 大小：
-        - 高 = scan_range / resolution
-        - 宽 = 2 * scan_range / resolution
+        - 高 = 2 * scan_range / resolution
+        - 宽 = scan_range / resolution
 
         坐标范围：
         - x: [0, scan_range)
         - y: [-scan_range, +scan_range)
 
-        数组定义（ROS 标准坐标系）：
-        - 行(row): 前向 x，row 越小表示 x 越大（越靠前）
-        - 列(col): 横向 y，col 越小表示 y 越大（越靠左）
-        - 左上角 costmap[0, 0] = (x=scan_range, y=+scan_range)，即左前方
-        - 右上角 costmap[0, cols-1] = (x=scan_range, y=-scan_range)，即右前方
+        数组定义（新布局，直接对齐 OccupancyGrid）：
+        - 列(col): 前向 x，col=0 是机器人近处，col 增大方向为机器人前方
+        - 行(row): 横向 y，row=0 是机器人右边，row 增大方向为机器人左边
+        - 左上角 costmap[0, 0] = (x=0, y=+scan_range)，即左远方
+        - 右上角 costmap[0, cols-1] = (x=scan_range, y=+scan_range)，即左前方远处
+        - 左下角 costmap[rows-1, 0] = (x=0, y=-scan_range)，即右近处（机器人右侧）
+        - 右下角 costmap[rows-1, cols-1] = (x=scan_range, y=-scan_range)，即右前方远处
         """
-        rows = int(self.scan_range / self.costmap_resolution)
-        cols = int(2 * self.scan_range / self.costmap_resolution)
+        rows = int(2 * self.scan_range / self.costmap_resolution)
+        cols = int(self.scan_range / self.costmap_resolution)
 
         costmap = np.zeros((rows, cols), dtype=np.uint8)
 
         if len(x_points) == 0:
             return costmap
 
-        # 新坐标系：row 越小 x 越大（越靠前），col 越小 y 越大（越靠左）
-        # x = 0 → row = rows-1（底部/靠近机器人）
-        # x = scan_range → row = 0（顶部/前方）
-        # y = +scan_range → col = 0（左侧）
-        # y = -scan_range → col = cols-1（右侧）
-        grid_col = np.floor((self.scan_range - y_points) / self.costmap_resolution).astype(int)
-        grid_row = rows - 1 - np.floor(x_points / self.costmap_resolution).astype(int)
+        # 新坐标系：col 对应 x（前方），row 对应 y（左侧为正，右侧为负）
+        # x = 0 → col = 0（左侧/靠近机器人）
+        # x = scan_range → col = cols-1（右侧/远离机器人）
+        # y = -scan_range → row = 0（右侧/机器人右边）
+        # y = +scan_range → row = rows-1（左侧/机器人左边）
+        grid_col = np.floor(x_points / self.costmap_resolution).astype(np.intp)
+        grid_row = np.floor((y_points + self.scan_range) / self.costmap_resolution).astype(np.intp)
 
         valid_mask = (
             (grid_col >= 0) & (grid_col < cols) &
@@ -652,7 +620,8 @@ class LidarCostmapNode(Node):
         grid_col = grid_col[valid_mask]
         grid_row = grid_row[valid_mask]
 
-        costmap[grid_row, grid_col] = self.costmap_value
+        if len(grid_col) > 0 and len(grid_row) > 0:
+            costmap[grid_row, grid_col] = self.costmap_value
         return costmap
 
     def fill_costmap_by_rays_fast(self, initial_costmap: np.ndarray) -> np.ndarray:
@@ -665,6 +634,12 @@ class LidarCostmapNode(Node):
 
         for grid_row_path, grid_col_path, _ in self.ray_paths:
             if len(grid_col_path) == 0:
+                continue
+
+            grid_row_path = np.asarray(grid_row_path, dtype=np.intp).ravel()
+            grid_col_path = np.asarray(grid_col_path, dtype=np.intp).ravel()
+
+            if len(grid_row_path) == 0 or len(grid_col_path) == 0:
                 continue
 
             hits = obstacle_mask[grid_row_path, grid_col_path]
@@ -755,18 +730,17 @@ class LidarCostmapNode(Node):
         发布局部 costmap
         使用 OccupancyGrid 消息类型，frame_id = 'base_link'
 
-        内部 costmap 定义（ROS 标准坐标系）：
-        - shape = (rows_x, cols_y)
-        - row 对应前向 x，row 越小表示 x 越大（越靠前）
-        - col 对应横向 y，col 越小表示 y 越大（越靠左）
-        - 左上角 costmap[0, 0] = (x=scan_range, y=+scan_range)，即左前方远处
-        - 右上角 costmap[0, cols-1] = (x=scan_range, y=-scan_range)，即右前方远处
-        - 左下角 costmap[rows-1, 0] = (x≈0, y=+scan_range)，即左侧近处
-        - 右下角 costmap[rows-1, cols-1] = (x≈0, y=-scan_range)，即右侧近处
+        内部 costmap 定义（新布局，直接对齐 OccupancyGrid）：
+        - shape = (rows_y, cols_x)
+        - col 对应前向 x，col 增大方向为机器人前方
+        - row 对应横向 y，row 增大方向为机器人左边
+        - 左上角 costmap[0, 0] = (x=0, y=+scan_range)，即左远方
+        - 右上角 costmap[0, cols-1] = (x=scan_range, y=+scan_range)，即左前方远处
+        - 左下角 costmap[rows-1, 0] = (x=0, y=-scan_range)，即右近处（机器人右侧）
+        - 右下角 costmap[rows-1, cols-1] = (x=scan_range, y=-scan_range)，即右前方远处
 
         发布策略：
-        - 内部 costmap 先顺时针旋转 90 度
-        - 再按照 OccupancyGrid 的标准语义发布
+        - 内部 costmap 直接作为 OccupancyGrid 发布，无需旋转
 
         发布后的 OccupancyGrid（base_link 下，origin 不旋转）满足：
         - width 沿 +x（前方）扩展
@@ -780,13 +754,8 @@ class LidarCostmapNode(Node):
         msg.header.stamp = TimeUtils.nanos_to_stamp(source_timestamp)
         msg.header.frame_id = 'base_link'
 
-        # 内部 costmap 旋转为标准 OccupancyGrid 布局：
-        #   occ_grid[row_occ, col_occ] = costmap[row, col]
-        #   row_occ = col
-        #   col_occ = rows_x - 1 - row
-        # 等价于顺时针旋转 90 度
-        occ_grid = costmap[::-1, ::-1].T
-        rows_occ, cols_occ = occ_grid.shape
+        # 内部 costmap 直接作为 OccupancyGrid 发布，无需旋转变换
+        rows_occ, cols_occ = costmap.shape
 
         msg.info.resolution = self.costmap_resolution
         msg.info.width = cols_occ    # x 方向（前方）格子数
@@ -801,124 +770,138 @@ class LidarCostmapNode(Node):
         msg.info.origin.orientation.z = 0.0
         msg.info.origin.orientation.w = 1.0
 
-        # OccupancyGrid.data 为 row-major：先沿 x 遍历一整行，再到更大的 y
+        # OccupancyGrid.data 为 row-major
         occ_grid_int = np.where(
-            occ_grid < 0,
-            0,
-            np.clip(occ_grid, 0, 100)
+            costmap < 0,
+            -1,
+            np.clip(costmap, 0, 100)
         ).astype(np.int8)
         msg.data = occ_grid_int.reshape(-1).tolist()
 
         self.local_costmap_pub.publish(msg)
 
-    def process_pointcloud(self, points: np.ndarray, cloud_stamp: int, cloud_frame_id: str):
+    def process_pointcloud(self, points: np.ndarray, cloud_stamp: int, cloud_frame_id: str) -> bool:
         """
-        处理一次点云完整流程：
-        1. 取最新点云
-        2. 时间戳校验
-        3. 高度过滤
-        4. 降采样
-        5. ROI
-        6. costmap
-        7. obs_min_distance
-        8. 发布
+        对点云执行完整处理流程：
+
+        Args:
+            points: 输入点云 (N, 3)
+            cloud_stamp: 点云时间戳
+            cloud_frame_id: 点云坐标系 ID
+
+        Returns:
+            True: 所有步骤顺利完成
+            False: 任意步骤出错
+
+        处理步骤：
+            1. 高度过滤
+            2. ROI 裁剪
+            3. 降采样
+            4. 射线扫描生成 costmap 和 obs_min_distance
+            5. 发布 local_costmap 和 lidar_obs
         """
-        # 记录频率统计
-        self.freq_stats.tick()
+        try:
+            cycle_start = time.perf_counter()
+            cloud_frame_id = cloud_frame_id if cloud_frame_id else 'base_link'
 
-        cycle_start = time.perf_counter()
-        cloud_frame_id = cloud_frame_id if cloud_frame_id else 'base_link'
+            # 1. 高度过滤
+            t0 = time.perf_counter()
+            points_filtered = self.filter_height(points)
+            t1 = time.perf_counter()
+            time_height = t1 - t0
+            if points_filtered is None:
+                self.logger.error('filter_height returned None')
+                return False
 
-        # 时间戳失效检测（仅记录日志，仍使用最新数据）
-        now_nanos = TimeUtils.now_nanos()
-        cloud_age_sec = (now_nanos - cloud_stamp) / 1e9
+            # 2. ROI（先裁剪，减少后续降采样处理的点数）
+            t0 = time.perf_counter()
+            points_roi = self.filter_roi(points_filtered)
+            t1 = time.perf_counter()
+            time_roi = t1 - t0
+            if points_roi is None:
+                self.logger.error('filter_roi returned None')
+                return False
 
-        if cloud_age_sec > self.cloud_timeout:
-            self._warn_throttled(
-                'stale_cloud',
-                f'Point cloud timeout: age={cloud_age_sec:.3f}s > timeout={self.cloud_timeout:.3f}s, using stale data.',
-                1.0
-            )
+            # 3. 降采样
+            t0 = time.perf_counter()
+            points_downsampled = self.downsample(points_roi)
+            t1 = time.perf_counter()
+            time_downsample = t1 - t0
+            if points_downsampled is None:
+                self.logger.error('downsample returned None')
+                return False
+            if len(points_downsampled) == 0:
+                self.logger.warning(
+                    f'downsample returned empty array; continuing with scan_points_once | '
+                    f'raw={len(points)} | '
+                    f'height={len(points_filtered)} | '
+                    f'roi={len(points_roi)} | '
+                    f'downsample={len(points_downsampled)}'
+                )
 
-        # 4. 高度过滤
-        t0 = time.perf_counter()
-        points_filtered = self.filter_height(points)
-        t1 = time.perf_counter()
-        time_height = t1 - t0
-
-        # 5. ROI（先裁剪，减少后续降采样处理的点数）
-        t0 = time.perf_counter()
-        points_roi = self.filter_roi(points_filtered)
-        t1 = time.perf_counter()
-        time_roi = t1 - t0
-
-        # 6. 降采样
-        t0 = time.perf_counter()
-        points_downsampled = self.downsample(points_roi)
-        t1 = time.perf_counter()
-        time_downsample = t1 - t0
-
-        if len(points_downsampled) == 0:
-            x_filtered = np.array([], dtype=np.float32)
-            y_filtered = np.array([], dtype=np.float32)
-        else:
             x_filtered = points_downsampled[:, 0]
             y_filtered = points_downsampled[:, 1]
 
-        # 7-8. 一次细射线扫描，同时生成 costmap 和 obs_min_distance
-        t0 = time.perf_counter()
-        costmap, obs_min_distance = self.scan_points_once(x_filtered, y_filtered)
-        t1 = time.perf_counter()
-        time_scan = t1 - t0
+            # 4. 射线扫描：生成 costmap 和 obs_min_distance
+            t0 = time.perf_counter()
+            result = self.scan_points_once(x_filtered, y_filtered)
+            t1 = time.perf_counter()
+            time_scan = t1 - t0
+            if result is None:
+                self.logger.error('scan_points_once returned None')
+                return False
+            costmap, obs_min_distance = result
+            if costmap is None or obs_min_distance is None:
+                self.logger.error('scan_points_once returned None in costmap or obs_min_distance')
+                return False
 
-        # 9. 发布
-        t0 = time.perf_counter()
-        self.publish_voxel_cloud(points_downsampled, cloud_stamp, cloud_frame_id)
-        self.publish_local_costmap(costmap, cloud_stamp)
-        self.publish_lidar_obs(obs_min_distance, cloud_stamp)
-        t1 = time.perf_counter()
-        time_publish = t1 - t0
+            # 5. 发布
+            t0 = time.perf_counter()
+            #self.publish_voxel_cloud(points_downsampled, cloud_stamp, cloud_frame_id)
+            self.publish_local_costmap(costmap, cloud_stamp)
+            self.publish_lidar_obs(obs_min_distance, cloud_stamp)
+            t1 = time.perf_counter()
+            time_publish = t1 - t0
 
-        total_time = time.perf_counter() - cycle_start
+            total_time = time.perf_counter() - cycle_start
 
-        if self.log_enabled:
-            log_msg = (
-                f'Update done | '
-                f'raw={len(points)} | '
-                f'height={len(points_filtered)} | '
-                f'roi={len(points_roi)} | '
-                f'downsample={len(points_downsampled)} | '
-                f'costmap={costmap.shape[1]}x{costmap.shape[0]} | '
-                f'cloud_age={cloud_age_sec:.3f}s | '
-                f'fine_scan_step={self.fine_scan_step_deg:.3f}deg | '
-                f't_height={time_height:.6f}s | '
-                f't_roi={time_roi:.6f}s | '
-                f't_downsample={time_downsample:.6f}s | '
-                f't_scan={time_scan:.6f}s | '
-                f't_publish={time_publish:.6f}s | '
-                f't_total={total_time:.6f}s'
-            )
-            self.logger.info(log_msg)
+            if self.log_enabled:
+                log_msg = (
+                    f'Update done | '
+                    f'raw={len(points)} | '
+                    f'height={len(points_filtered)} | '
+                    f'roi={len(points_roi)} | '
+                    f'downsample={len(points_downsampled)} | '
+                    f'costmap={costmap.shape[1]}x{costmap.shape[0]} | '
+                    f'fine_scan_step={self.fine_scan_step_deg:.3f}deg | '
+                    f't_height={time_height:.6f}s | '
+                    f't_roi={time_roi:.6f}s | '
+                    f't_downsample={time_downsample:.6f}s | '
+                    f't_scan={time_scan:.6f}s | '
+                    f't_publish={time_publish:.6f}s | '
+                    f't_total={total_time:.6f}s'
+                )
+                self.logger.info(log_msg)
 
-    def update(self):
-        """
-        兼容保留：如果外部仍调用 update()，则处理当前缓存的最新点云。
-        （当前实现不再使用定时器调用 update）
-        """
-        if self.latest_points is None or self.latest_cloud_stamp is None:
-            self._warn_throttled('no_cloud', 'No PointCloud2 received yet, skip this update.', 2.0)
-            return
-        self.process_pointcloud(
-            self.latest_points,
-            self.latest_cloud_stamp,
-            self.latest_cloud_frame_id if self.latest_cloud_frame_id else 'base_link'
-        )
+            return True
 
+        except Exception as e:
+            import traceback
+            tb_str = traceback.format_exc()
+            self.logger.error(f'process_pointcloud failed: {e}\n{tb_str}')
+            return False
 
-def main(args=None):
+def run_lidar_costmap_node(log_dir: str = None, log_timestamp: str = None, args=None):
+    """运行节点
+
+    Args:
+        log_dir: 日志目录
+        log_timestamp: 日志时间戳
+        args: ROS 参数
+    """
     rclpy.init(args=args)
 
-    node = LidarCostmapNode()
+    node = LidarCostmapNode(log_dir=log_dir, log_timestamp=log_timestamp)
     executor = SingleThreadedExecutor()
     executor.add_node(node)
 
@@ -930,6 +913,11 @@ def main(args=None):
         executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
+
+
+def main():
+    """独立运行入口（使用默认日志目录）"""
+    run_lidar_costmap_node()
 
 
 if __name__ == '__main__':

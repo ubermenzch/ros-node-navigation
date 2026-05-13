@@ -1,4 +1,4 @@
-# GPS导航系统配置文件
+# GNSS导航系统配置文件
 # 所有可调参数在此统一配置
 
 # ============================================================
@@ -6,41 +6,93 @@
 # ============================================================
 ekf_fusion_node:
   # 节点运行频率 (Hz)
-  frequency: 30.0 # 每次融合的时间步长dt由频率决定
+  frequency: 20.0 # 每次融合的时间步长dt由频率决定
 
   # ========== 订阅话题 ==========
   subscriptions:
-    gps_topic: /rtk_fix # 用于获取gps坐标
+    gnss_topic: /rtk_fix # 用于获取gnss坐标
     odom_topic: /utlidar/robot_odom # 用于获取里程计数据，frame_id=odom
-    world_orientation_topic: /rtk_imu # RTK 计算输出的世界系朝向话题
+    gnss_yaw_topic: /rtk_imu # RTK 计算输出的世界系朝向话题
 
   # ========== 发布话题 ==========
   publications:
     map_pose_topic: /navigation/map_pose  # 地图坐标系定位,frame_id=map
-    gps_map_pose_topic: /navigation/gps_map_pose  # GPS原始位姿（用于可视化对比）,frame_id=map
+    gnss_map_pose_topic: /navigation/gnss_map_pose  # GNSS原始位姿（用于可视化对比）,frame_id=map
     # map_origin_gps 不再发布（通过 TF 变换可知）
 
   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
-  gps_timeout: 0.9
-  odom_timeout: 0.2
-  world_orientation_timeout: 0.5  # 世界系朝向超时时间
+  gnss_timeout: 1.0
+  odom_timeout: 1.0
+  gnss_yaw_timeout: 1.0  # 世界系 yaw 缓存超时时间（RTK yaw 或 odom-as-world-yaw）
 
-  # 融合参数
-  # gps_alpha: GPS/世界系朝向融合权重 [0,1]
-  #   - 位置融合: 控制 GPS 位置与 odom 传播位置的融合
-  #   - 朝向融合: 控制世界系朝向与 odom 角速度积分的融合
-  #   - 1.0 = 完全信任 GPS/世界系朝向, 0.0 = 完全信任 odom
-  gps_alpha: 0.0
-  # 单次GPS跳变拒绝阈值（米），超过此值的GPS跳变将被忽略
-  gps_jump_reject: 999.0
-  # 单次朝向跳变拒绝阈值（弧度），超过此值的朝向跳变将被忽略
-  yaw_jump_reject: 999.0  # 0.5弧度约28.6度
+  # 世界系 yaw 来源选择
+  # false = 使用 gnss_yaw_topic (/rtk_imu) 提供的 RTK 世界系朝向，适用于 RTK 模块能稳定输出绝对 yaw 的情况
+  # true = 不订阅 gnss_yaw_topic，直接把 odom yaw 当作世界系 yaw 使用
+  #        适用于 RTK 模块无法提供世界系朝向、但 odom yaw 在短时间内足够稳定的情况
+  #        开启时必须让机器狗启动时朝正东（map/UTM x 正方向），使 odom yaw=0 对应世界系 yaw=0
+  #        如果启动朝向不是正东，后续 map_pose yaw 会带一个固定角度偏差
+  use_odom_yaw_as_world_yaw: false
 
-  # 启动时是否朝正东
-  # 当设为 true 时，机器人在启动时默认朝向正东，此时里程计 yaw=0 对应世界系 yaw=0
-  # 当设为 false 时，使用 world_orientation_topic 提供世界系朝向
-  # 该参数用于无法提供世界系朝向的情况，通过将里程计朝向当作世界系朝向来解决对齐问题
-  face_east_on_startup: true
+  # 融合模式
+  # false = 使用当前 GNSS 锚点 + odom 增量的融合方式
+  # true = 使用 2D EKF，状态量为 [map_x, map_y, yaw]
+  use_2d_ekf: true
+
+  # 2D EKF 参数
+  ekf_2d:
+    # GNSS 位置观测默认方差 (m^2)
+    # 当 NavSatFix.position_covariance 未知、为 0、为负数或非法时使用该值
+    # 数值越小，EKF 越相信 RTK/GNSS 位置；数值越大，越依赖 odom 预测
+    default_gnss_position_variance: 0.0025
+
+    # RTK yaw 观测默认方差 (rad^2)
+    # 当 Imu.orientation_covariance[8] 未知、为 0、为负数或非法时使用该值
+    # 数值越小，EKF 越相信 RTK yaw；数值越大，yaw 输出越依赖 odom 增量
+    default_yaw_variance: 1.2e-05
+
+    # RTK/GNSS 总体不确定性倍率，同时作用于 GNSS 位置观测方差和 RTK yaw 观测方差
+    # 1.0 = 使用原始/默认方差
+    # 越大表示 RTK 越不可信：Mahalanobis 更不容易拒绝波动观测，但单次校正力度也更弱
+    rtk_uncertainty_scale: 1.0
+
+    # GNSS 位置观测方差下限 (m^2)
+    # 防止传感器上报过小方差导致 EKF 过度相信单次 GNSS 观测
+    gnss_position_variance_floor: 1.0e-4
+
+    # yaw 观测方差下限 (rad^2)
+    # 防止 yaw 协方差过小导致航向被单次 RTK yaw 观测强行拉动
+    yaw_variance_floor: 1.0e-8
+
+    # odom 预测的位置过程噪声最小值 (m^2)
+    # 即使 odom 两帧位移很小，也给位置不确定性一个最小增长量
+    process_position_variance_min: 1.0e-6
+
+    # odom 预测的位置过程噪声比例 (m^2/m)
+    # 每移动 1 米增加的预测位置方差；数值越大，EKF 越快忘记 odom 预测并等待 GNSS 修正
+    process_position_variance_per_meter: 1.0e-2
+
+    # odom 预测的 yaw 过程噪声最小值 (rad^2)
+    # 即使 odom yaw 增量很小，也给航向不确定性一个最小增长量
+    process_yaw_variance_min: 1.0e-8
+
+    # odom 预测的 yaw 过程噪声比例 (rad^2/rad)
+    # odom 每转动 1 rad 增加的 yaw 方差；数值越大，EKF 越快用 RTK yaw 修正航向
+    process_yaw_variance_per_rad: 1.0e-2
+
+    # GNSS 位置观测 Mahalanobis 门限
+    # 超过该门限的位置观测会被判为异常跳点并跳过；数值越小，异常剔除越严格
+    max_position_mahalanobis: 16.0
+
+    # yaw 观测 Mahalanobis 门限
+    # 超过该门限的 yaw 观测会被判为异常航向并跳过；数值越小，异常剔除越严格
+    max_yaw_mahalanobis: 16.0
+
+    # RTK/GNSS 观测拒绝率统计窗口（秒）
+    # 日志会输出窗口内总拒绝占比，以及 GNSS position / RTK yaw 分项拒绝占比
+    # 可根据该比例调整 rtk_uncertainty_scale：拒绝率长期偏高时可适当调大
+    rtk_rejection_stats_window: 30.0
+    # RTK/GNSS 观测拒绝率日志输出间隔（秒）；设为 0 可关闭该统计日志
+    rtk_rejection_stats_log_interval: 5.0
 
   # 日志配置
   log_enabled: true
@@ -60,28 +112,22 @@ lidar_costmap_node:
     voxel_cloud_topic: /navigation/voxel_cloud
 
   # 扫描范围 (米)
-  scan_range: 10.0
+  scan_range: 7.0
 
   # 高度过滤 (米)
-  min_height: -0.1             # -0.35，最低高度
+  min_height: -0.25             # -0.35，最低高度
   max_height: 1.0              # 最高高度
 
   
   voxel_size: 0.2 #体素尺寸
   min_points_per_voxel: 1 #最小点数阈值
 
-  # 工作频率 (Hz)
-  frequency: 10.0
-
   # Costmap参数
   costmap_value: 100            # 障碍物填充值
 
   # RL输入参数
   bin_num: 20                   # 前方180度的分区数量
-  ray_angle_step_deg: 2.0       # 射线角度间隔 (度)
-
-  # 超时参数 (秒)
-  cloud_timeout: 1.0            # 点云超时阈值
+  ray_angle_step_deg: 1.0       # 射线角度间隔 (度)
 
   # 日志配置
   log_enabled: true
@@ -93,41 +139,81 @@ map_planner_node:
   square_size: 20.0
   # road_width: 道路的有效通行宽度（米），用于在地图上绘制道路区域
   #             机器人将沿此宽度范围内的路径行驶
-  road_width: 40.0
+  road_width: 20.0
   # - 每隔 road_sample_step 米在路径上采样一个点
   # - 以每个采样点为中心画圆形区域（半径 = road_width / 2）
   # - 圆形区域内的栅格设为空闲 (0)，外部保持原值
   road_sample_step: 1.0 #单位m
 
+  # 初始化模式
+  # true = 接收航点后正常生成道路（道路区域为0，外部为100），然后对全图膨胀一次
+  # false = 直接生成全0的空地图（全部可通行），初始化时不进行全图膨胀
+  #         后续的局部地图更新仍会正常进行膨胀（受 inflation_enabled 控制）
+  # 设为 false 可大幅减少长距离道路时的初始化时间
+  generate_road_on_init: false
+
   # 膨胀参数
   # 膨胀形状为正方形，边长 = inflation_margin * 2（米）
   # 例如：inflation_margin=0.3，则膨胀正方形边长 = 0.6 米
-  inflation_margin: 0.2 #单位m
+  inflation_margin: 0.4 #单位m
 
   # 地图发布方式
   # true = 每次局部更新都发送完整 OccupancyGrid
   # false = 发送 OccupancyGridUpdate 增量更新
   publish_full_map: true
+  # 是否发布未膨胀地图（map_topic / map_update_topic）
+  # true = 同时发布未膨胀地图和膨胀地图，便于对比调试
+  # false = 只发布膨胀地图，减少可视化和通信开销
+  publish_uninflated_map: false
+  # 调试用动态子地图，尺寸和 origin 会随局部更新包围盒变化。
+  # RViz2 Foxy 在频繁显示动态尺寸 Map 时可能触发 OGRE/GL 资源问题，默认关闭。
+  publish_debug_map: false
   
-  inflation_enabled: false 
+  inflation_enabled: true 
   # 超时参数
   map_pose_timeout: 1.0
-  local_costmap_timeout: 0.3
+  local_costmap_timeout: 0.5
+  # 队列清理频率 (Hz)，用于定时清理 map_pose 等缓存队列；设为 0 可禁用
+  queue_cleanup_frequency: 20.0
 
   # 规划参数
-  max_distance_between: 3.0
-  allow_diagonal: false
-  arrival_threshold: 2.0
-  arrival_check_frequency: 2.0  # 航点到达检查频率 (Hz)
+  max_distance_between: 6.0
+  # 导航航点密集化参数：相邻航点之间的最大距离（米）
+  # 如果两点间距离超过此值，将插入中间点
+  # 设置为 0 可禁用密集化功能
+  dense_nav_points_max_distance: 10.0
+  arrival_threshold: 5.0
+  # 全局路径回归阈值（米）
+  # 当前 map_pose 到“上一目标航点 -> 当前目标航点”线段的距离超过该值时，
+  # A* 以“线段最近点”和“当前目标航点”的加权融合点为目标；
+  # 回到全局路径附近后，再以当前目标航点为目标。
+  # 设置为 0 可禁用该逻辑。
+  global_path_rejoin_threshold: 1.0
+  # 全局路径回归融合权重：当前目标航点权重，取值范围 [0, 1]
+  # 例如 0.1 表示目标航点占 0.1，线段最近点占 0.9。
+  global_path_rejoin_goal_weight: 0.25
+  arrival_check_frequency: 10.0  # 航点到达检查频率 (Hz)
   obstacle_threshold: 50
+  planning_frequency: 5.0  # 5.0，路径规划频率 (Hz)，独立于地图更新
+  # base_link路径发布频率 (Hz)。A* 低频更新 map 路径，此定时器高频用最新 map_pose 转换后发布给 controller。
+  path_publish_frequency: 10.0
+  # A* 是否允许斜向移动
+  # true = 8连通（上下左右 + 四个斜向），斜向代价为 sqrt(2)，更容易朝目标直线规划
+  # false = 4连通（仅上下左右），保持原始行为
+  allow_diagonal_astar: true
+  # A* 搜索方向
+  # true = 双向 A*，从起点和终点同时搜索，长距离通常更快
+  # false = 单向 A*，从起点搜索到终点，行为更直观，便于调试
+  use_bidirectional_astar: false
+  # A* 单次最大节点扩展数
+  # 超出时返回已找到的最优路径（或 None），防止碎片障碍物场景下长时间阻塞
+  # 参考：resolution=0.2m 时地图约 30万格子，200000 约覆盖 2/3 可达空间
+  max_astar_nodes: 10000
 
-  # 规划参数
-
-  # 日志
   log_enabled: true
 
   subscriptions:
-    gps_path_topic: /navigation_control
+    gnss_path_topic: /navigation_control
     map_pose_topic: /navigation/map_pose
     local_costmap_topic: /navigation/local_costmap
 
@@ -138,8 +224,9 @@ map_planner_node:
     inflated_map_update_topic: /navigation/inflated_map_updates  # 膨胀地图局部更新
     nav_map_points_topic: /navigation/nav_map_points
     path_topic: /navigation/planned_path           # base_link 坐标系，供 controller 使用
-    path_map_topic: /navigation/planned_path_map    # map 坐标系，供 rviz 可视化使用
-    
+    path_map_topic: /navigation/planned_path_map   # map 坐标系，供 RViz2 可视化使用
+    target_marker_topic: /navigation/controller_target  # 当前map路径第一个点Marker（用于RViz2可视化）
+
 # ============================================================
 # 控制器节点配置
 # ============================================================
@@ -153,12 +240,16 @@ controller_node:
   # ========== 发布话题 ==========
   publications:
     cmd_topic: /cmd_vel                # 控制指令
+    guidance_marker_topic: /navigation/controller_guidance  # RViz2 MarkerArray，可视化线速度/角速度指令箭头
+
+  # RViz2控制指导MarkerArray使用的坐标系
+  guidance_marker_frame: base_link
 
   # 超时配置 (秒)
   # 当前时间 - 最后一次收到该传感器数据的时间 > 超时阈值 则认为该传感器数据丢失
-  path_timeout: 999          # 路径超时时间
-  lidar_obs_timeout: 999     # 障碍物观测超时时间
-  odom_timeout: 999           # 里程计超时时间
+  path_timeout: 1.0          # 路径超时时间
+  lidar_obs_timeout: 0.5     # 障碍物观测超时时间
+  odom_timeout: 0.5           # 里程计超时时间
 
   # 模型配置
   model_path: "models/ETH25/SAC_actor.pth"  # PyTorch 模型路径
@@ -174,11 +265,42 @@ controller_node:
   log_enabled: true
 
 # ============================================================
+# 宇树 Go2 前置摄像头录像节点配置
+# ============================================================
+front_video_recorder_node:
+  # true = 随 multi_main.py 启动前置摄像头 H.264 录像节点
+  # false = 不启动该节点，减少 CPU 占用
+  enabled: true
+
+  # 机器狗前置摄像头 RTP/H.264 多播流参数，与 test264.py 保持一致
+  iface: eth0
+  address: 230.1.1.1
+  port: 1720
+  latency_ms: 100
+
+  # 输出容器：mp4 需要正常收到 EOS 才能写入索引；mkv 对异常退出更宽容
+  container: mkv
+  output_dir: videos
+  filename_prefix: go2_front
+  # 留空时自动生成：videos/go2_front_<本次 multi_main 时间戳>.mp4
+  output_filename: ""
+  # 如果需要固定文件名，可填写例如 go2_front.mp4；相对路径基于项目根目录
+  output_path: ""
+  overwrite_existing: false
+
+  # Ctrl+C 关闭 multi_main.py 时，主进程等待录像节点写完 EOS 的最长时间
+  shutdown_timeout_sec: 30.0
+  # 录像节点内部发送 EOS 后等待 GStreamer 确认的最长时间
+  eos_timeout_sec: 30.0
+
+  log_enabled: true
+
+# ============================================================
 # 通用配置
 # ============================================================
 common:
   # 地图分辨率 (米/格) - map_node 和 lidar_costmap_node 共用
-  resolution: 0.2
+  resolution: 0.2  # 0.2
 
   # ============================================================
   # 测试模式配置

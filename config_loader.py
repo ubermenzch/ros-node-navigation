@@ -59,6 +59,19 @@ class ConfigLoader:
 
         return value
 
+    def get_bool(self, key: str, default: bool = False) -> bool:
+        """获取布尔配置值，兼容 YAML bool 和字符串形式的 true/false。"""
+        value = self.get(key, default)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ('true', '1', 'yes', 'on'):
+                return True
+            if normalized in ('false', '0', 'no', 'off'):
+                return False
+        return bool(value)
+
     def get_ekf_config(self) -> dict:
         """获取EKF融合节点配置"""
         return self._config.get('ekf_fusion_node', {})
@@ -82,3 +95,8 @@ def get_config() -> ConfigLoader:
 def get(key: str, default: Any = None) -> Any:
     """获取配置值的便捷函数"""
     return get_config().get(key, default)
+
+
+def get_bool(key: str, default: bool = False) -> bool:
+    """获取布尔配置值的便捷函数"""
+    return get_config().get_bool(key, default)
