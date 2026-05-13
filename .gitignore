@@ -1,6 +1,9 @@
 # Runtime logs
 logs/
 
+# Runtime video recordings
+videos/
+
 # Python cache
 __pycache__/
 *.py[cod]

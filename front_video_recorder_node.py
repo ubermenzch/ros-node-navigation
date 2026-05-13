@@ -49,7 +49,7 @@ class FrontVideoRecorderNode:
         self.overwrite_existing = self._get_bool(node_config, "overwrite_existing", False)
 
         self.output = self._resolve_output_path()
-        os.makedirs(os.path.dirname(self.output), exist_ok=True)
+        self._ensure_output_dir(self.output)
 
         self.logger = NodeLogger(
             node_name="front_video_recorder_node",
@@ -114,6 +114,11 @@ class FrontVideoRecorderNode:
             if not os.path.exists(candidate):
                 return candidate
         return path
+
+    @staticmethod
+    def _ensure_output_dir(path: str) -> None:
+        output_dir = os.path.dirname(os.path.abspath(path))
+        os.makedirs(output_dir, exist_ok=True)
 
     def _resolve_output_path(self) -> str:
         if self.output_path:
