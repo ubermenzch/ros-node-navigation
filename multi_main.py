@@ -35,9 +35,11 @@ def get_project_root() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def ensure_log_dir(log_dir: str) -> None:
-    """确保日志目录存在"""
-    os.makedirs(log_dir, exist_ok=True)
+def ensure_log_dir(log_dir: str) -> str:
+    """确保日志目录存在，并返回规范化后的路径"""
+    resolved_log_dir = os.path.abspath(os.path.expanduser(log_dir))
+    os.makedirs(resolved_log_dir, exist_ok=True)
+    return resolved_log_dir
 
 
 # ========== 节点包装函数 ==========
@@ -63,6 +65,7 @@ def node_wrapper(
     """
     # 设置进程名
     mp.current_process().name = node_name
+    log_dir = ensure_log_dir(log_dir)
 
     print(f"[{node_name}] starting in process {os.getpid()}", flush=True)
 
@@ -108,7 +111,7 @@ class ProcessManager:
         # 创建统一日志目录
         project_root = get_project_root()
         self.log_dir: str = os.path.join(project_root, 'logs', f'navigation_{self.start_timestamp}')
-        ensure_log_dir(self.log_dir)
+        self.log_dir = ensure_log_dir(self.log_dir)
 
     def start_node(
         self,

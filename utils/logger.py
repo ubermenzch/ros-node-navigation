@@ -58,8 +58,8 @@ class NodeLogger:
             level: 日志级别
         """
         self.node_name = node_name
-        self.log_dir = log_dir
         self.log_timestamp = log_timestamp if log_timestamp else datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.log_dir = self._resolve_log_dir(log_dir)
         self.enabled = enabled
         self.ros_logger = ros_logger
 
@@ -69,22 +69,27 @@ class NodeLogger:
         self._logger.propagate = False
 
         if enabled:
-            if log_dir is None:
-                log_dir = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    '..',
-                    'logs',
-                    f'navigation_{self.log_timestamp}'
-                )
-            os.makedirs(log_dir, exist_ok=True)
+            os.makedirs(self.log_dir, exist_ok=True)
 
-            log_file = os.path.join(log_dir, f'{node_name}_log_{self.log_timestamp}.log')
+            log_file = os.path.join(self.log_dir, f'{node_name}_log_{self.log_timestamp}.log')
 
             file_handler = logging.FileHandler(log_file, encoding='utf-8')
             file_handler.setLevel(level)
             formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
             file_handler.setFormatter(formatter)
             self._logger.addHandler(file_handler)
+
+    def _resolve_log_dir(self, log_dir: Optional[str]) -> str:
+        """Resolve the directory used for file logs."""
+        if log_dir:
+            return os.path.abspath(os.path.expanduser(log_dir))
+
+        return os.path.abspath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..',
+            'logs',
+            f'navigation_{self.log_timestamp}',
+        ))
 
     @property
     def logger(self) -> logging.Logger:
