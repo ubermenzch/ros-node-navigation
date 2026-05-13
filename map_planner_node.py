@@ -67,7 +67,7 @@ except ImportError:
     HAS_PYPROJ = False
     logging.warning("pyproj not installed, GNSS->UTM conversion will not work")
 
-from config_loader import get_config
+from utils.config_loader import get_config
 from utils.frequency_stats import FrequencyStats
 from utils.logger import NodeLogger
 

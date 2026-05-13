@@ -25,10 +25,12 @@ class ConfigLoader:
             self._load_config()
 
     def _get_config_path(self) -> str:
-        """获取配置文件路径（相对于当前文件目录）"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(current_dir, 'config.yaml')
-        return config_path
+        """获取项目根目录下的配置文件路径"""
+        project_root = os.path.abspath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..',
+        ))
+        return os.path.join(project_root, 'config.yaml')
 
     def _load_config(self):
         """加载配置文件"""

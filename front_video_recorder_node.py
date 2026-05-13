@@ -17,7 +17,7 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst, GLib
 
-from config_loader import get_config
+from utils.config_loader import get_config
 from utils.logger import NodeLogger
 
 

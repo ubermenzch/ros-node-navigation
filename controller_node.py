@@ -27,7 +27,7 @@ import numpy as np
 import os
 from datetime import datetime
 
-from config_loader import get_config
+from utils.config_loader import get_config
 from utils.frequency_stats import FrequencyStats
 from utils.logger import NodeLogger
 

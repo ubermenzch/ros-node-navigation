@@ -169,7 +169,7 @@ class ProcessManager:
 
     def start_all(self) -> None:
         """启动所有节点"""
-        from config_loader import get_config
+        from utils.config_loader import get_config
         config = get_config()
         is_test_mode = config.get_bool('common.test_mode', False)
         front_video_recorder_enabled = config.get_bool('front_video_recorder_node.enabled', False)
@@ -213,7 +213,7 @@ class ProcessManager:
             return 5.0
 
         try:
-            from config_loader import get_config
+            from utils.config_loader import get_config
             return max(
                 1.0,
                 float(get_config().get('front_video_recorder_node.shutdown_timeout_sec', 10.0))

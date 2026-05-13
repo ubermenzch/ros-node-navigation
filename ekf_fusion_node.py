@@ -44,7 +44,7 @@ from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
 import numpy as np
 import pyproj
 
-from config_loader import get_config
+from utils.config_loader import get_config
 from utils.frequency_stats import FrequencyStats
 from utils.time_utils import TimeUtils
 from utils.logger import NodeLogger
